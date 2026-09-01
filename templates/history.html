@@ -1,0 +1,1055 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>WebGuard | Scan History</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            background: #080d12;
+            color: #e8eef5;
+            min-height: 100vh;
+        }
+
+        /* =========================
+           LAYOUT
+        ========================= */
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 220px;
+            background: #0d151d;
+            border-right: 1px solid #1d2a36;
+            padding: 28px 14px;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .brand {
+            padding: 0 12px 35px;
+        }
+
+        .brand h1 {
+            font-size: 22px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+        }
+
+        .brand span {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #6d9bd0;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #91a5ba;
+            padding: 12px 12px;
+            border-radius: 7px;
+            font-size: 14px;
+            transition: 0.2s;
+        }
+
+        .nav a:hover {
+            background: #162431;
+            color: white;
+        }
+
+        .nav a.active {
+            background: #1a2a39;
+            color: #ffffff;
+            font-weight: 600;
+        }
+
+        .main {
+            margin-left: 220px;
+            width: calc(100% - 220px);
+            padding: 42px 48px;
+        }
+
+        /* =========================
+           HEADER
+        ========================= */
+
+        .page-header {
+            margin-bottom: 32px;
+        }
+
+        .page-header h2 {
+            font-size: 32px;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: #7890a8;
+            font-size: 14px;
+        }
+
+        .header-line {
+            margin-top: 20px;
+            height: 1px;
+            background: linear-gradient(
+                90deg,
+                #263746,
+                transparent
+            );
+        }
+
+        /* =========================
+           SUMMARY
+        ========================= */
+
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .summary-card {
+            background: #101820;
+            border: 1px solid #20303e;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .summary-label {
+            color: #7590a9;
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+
+        .summary-value {
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .summary-card small {
+            display: block;
+            margin-top: 5px;
+            color: #60788e;
+            font-size: 11px;
+        }
+
+        /* =========================
+           HISTORY HEADER
+        ========================= */
+
+        .history-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+        }
+
+        .history-head h3 {
+            font-size: 20px;
+        }
+
+        .refresh-btn {
+            border: 1px solid #2b4152;
+            background: #101a23;
+            color: #9db4ca;
+            padding: 9px 14px;
+            border-radius: 7px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: 0.2s;
+        }
+
+        .refresh-btn:hover {
+            background: #172633;
+            color: white;
+        }
+
+        /* =========================
+           SCAN CARD
+        ========================= */
+
+        .history-list {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .scan-card {
+            background: #0e151c;
+            border: 1px solid #22313e;
+            border-radius: 10px;
+            overflow: hidden;
+            transition: 0.2s;
+        }
+
+        .scan-card:hover {
+            border-color: #365064;
+            transform: translateY(-1px);
+        }
+
+        .scan-main {
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1.8fr 0.8fr 0.8fr 0.8fr 100px;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .target {
+            min-width: 0;
+        }
+
+        .target-label {
+            color: #607b92;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 7px;
+        }
+
+        .target-url {
+            font-size: 14px;
+            font-weight: 600;
+            color: #dce8f2;
+            word-break: break-all;
+        }
+
+        .scan-time {
+            color: #6f879d;
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .metric label {
+            display: block;
+            color: #61798f;
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+
+        .metric strong {
+            font-size: 18px;
+        }
+
+        /* =========================
+           RISK BADGE
+        ========================= */
+
+        .risk {
+            display: inline-flex;
+            justify-content: center;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            width: fit-content;
+        }
+
+        .risk.high {
+            background: #4a2024;
+            color: #ff777d;
+        }
+
+        .risk.medium {
+            background: #453719;
+            color: #e9bd4c;
+        }
+
+        .risk.low {
+            background: #15374b;
+            color: #55b9ee;
+        }
+
+        .risk.secure {
+            background: #153b2b;
+            color: #57d68d;
+        }
+
+        /* =========================
+           SCORE
+        ========================= */
+
+        .score {
+            width: 54px;
+            height: 54px;
+            border-radius: 50%;
+            border: 4px solid #294052;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 700;
+            margin-left: auto;
+        }
+
+        /* =========================
+           DETAILS
+        ========================= */
+
+        .details {
+            display: none;
+            border-top: 1px solid #202f3b;
+            background: #0a1117;
+            padding: 22px;
+        }
+
+        .details.open {
+            display: block;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+        }
+
+        .detail-box {
+            border: 1px solid #1e2d39;
+            background: #0d161e;
+            border-radius: 7px;
+            padding: 14px;
+        }
+
+        .detail-box label {
+            display: block;
+            color: #627b91;
+            font-size: 10px;
+            text-transform: uppercase;
+            margin-bottom: 7px;
+        }
+
+        .detail-box span {
+            font-size: 13px;
+            color: #d6e2ed;
+            word-break: break-word;
+        }
+
+        .view-btn {
+            margin-top: 18px;
+            border: 1px solid #2c4354;
+            background: #12202b;
+            color: #8db3d2;
+            padding: 8px 13px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 11px;
+        }
+
+        .view-btn:hover {
+            background: #192d3c;
+            color: white;
+        }
+
+        /* =========================
+           STATES
+        ========================= */
+
+        .state {
+            border: 1px dashed #263947;
+            background: #0d151c;
+            border-radius: 10px;
+            padding: 70px 20px;
+            text-align: center;
+        }
+
+        .state-icon {
+            font-size: 34px;
+            margin-bottom: 15px;
+            opacity: 0.8;
+        }
+
+        .state h3 {
+            margin-bottom: 7px;
+        }
+
+        .state p {
+            color: #688096;
+            font-size: 13px;
+        }
+
+        .loading {
+            color: #6e91ad;
+        }
+
+        .error {
+            color: #ff747a;
+        }
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 1000px) {
+
+            .summary {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .scan-main {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .score {
+                margin-left: 0;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 700px) {
+
+            .sidebar {
+                width: 70px;
+            }
+
+            .brand h1,
+            .brand span,
+            .nav a span {
+                display: none;
+            }
+
+            .main {
+                margin-left: 70px;
+                width: calc(100% - 70px);
+                padding: 25px 18px;
+            }
+
+            .summary {
+                grid-template-columns: 1fr;
+            }
+
+            .scan-main {
+                grid-template-columns: 1fr;
+            }
+
+            .details-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+        <div class="brand">
+            <h1>WebGuard</h1>
+            <span>Security Scanner</span>
+        </div>
+
+        <nav class="nav">
+
+            <a href="/">
+                Dashboard
+            </a>
+
+            <a href="/history" class="active">
+                Scan History
+            </a>
+
+            <a href="/reports">
+                Reports
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- MAIN -->
+    <main class="main">
+
+        <header class="page-header">
+
+            <h2>Scan History</h2>
+
+            <p>
+                Review previous security assessments and track
+                your application's security posture.
+            </p>
+
+            <div class="header-line"></div>
+
+        </header>
+
+
+        <!-- SUMMARY -->
+        <section class="summary">
+
+            <div class="summary-card">
+                <div class="summary-label">
+                    Total Scans
+                </div>
+
+                <div class="summary-value" id="totalScans">
+                    —
+                </div>
+
+                <small>
+                    Recorded assessments
+                </small>
+            </div>
+
+
+            <div class="summary-card">
+                <div class="summary-label">
+                    Vulnerabilities
+                </div>
+
+                <div class="summary-value" id="totalVulnerabilities">
+                    —
+                </div>
+
+                <small>
+                    Issues discovered
+                </small>
+            </div>
+
+
+            <div class="summary-card">
+                <div class="summary-label">
+                    High Risk
+                </div>
+
+                <div class="summary-value" id="totalHighRisk">
+                    —
+                </div>
+
+                <small>
+                    High / critical findings
+                </small>
+            </div>
+
+
+            <div class="summary-card">
+                <div class="summary-label">
+                    Average Score
+                </div>
+
+                <div class="summary-value" id="averageScore">
+                    —
+                </div>
+
+                <small>
+                    Across recorded scans
+                </small>
+            </div>
+
+        </section>
+
+
+        <!-- HISTORY -->
+        <section>
+
+            <div class="history-head">
+
+                <h3>Recent Assessments</h3>
+
+                <button
+                    class="refresh-btn"
+                    onclick="loadHistory()"
+                >
+                    ↻ Refresh
+                </button>
+
+            </div>
+
+
+            <div
+                id="historyList"
+                class="history-list"
+            >
+
+                <div class="state">
+
+                    <div class="state-icon">◌</div>
+
+                    <h3 class="loading">
+                        Loading scan history...
+                    </h3>
+
+                    <p>
+                        Retrieving previous assessments.
+                    </p>
+
+                </div>
+
+            </div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script>
+
+async function loadHistory() {
+
+    const container =
+        document.getElementById("historyList");
+
+    container.innerHTML = `
+        <div class="state">
+            <div class="state-icon">◌</div>
+            <h3 class="loading">
+                Loading scan history...
+            </h3>
+            <p>
+                Retrieving previous assessments.
+            </p>
+        </div>
+    `;
+
+    try {
+
+        const response =
+            await fetch("/api/history");
+
+        if (!response.ok) {
+            throw new Error(
+                "Unable to load scan history."
+            );
+        }
+
+        const data =
+            await response.json();
+
+        /*
+         * Your API currently returns:
+         *
+         * {
+         *     "scans": [...]
+         * }
+         */
+
+        const scans =
+            data.scans || [];
+
+        updateSummary(scans);
+
+        if (scans.length === 0) {
+
+            container.innerHTML = `
+                <div class="state">
+
+                    <div class="state-icon">
+                        ◫
+                    </div>
+
+                    <h3>
+                        No scans yet
+                    </h3>
+
+                    <p>
+                        Completed security scans
+                        will appear here.
+                    </p>
+
+                </div>
+            `;
+
+            return;
+        }
+
+        container.innerHTML =
+            scans.map(
+                (scan, index) =>
+                    createScanCard(scan, index)
+            ).join("");
+
+    } catch (error) {
+
+        container.innerHTML = `
+            <div class="state">
+
+                <div class="state-icon">
+                    ⚠
+                </div>
+
+                <h3 class="error">
+                    Failed to load history
+                </h3>
+
+                <p>
+                    ${escapeHTML(error.message)}
+                </p>
+
+            </div>
+        `;
+    }
+}
+
+
+/* =========================
+   SUMMARY
+========================= */
+
+function updateSummary(scans) {
+
+    const total =
+        scans.length;
+
+    const vulnerabilities =
+        scans.reduce(
+            (sum, scan) =>
+                sum + Number(
+                    scan.vulnerability_count || 0
+                ),
+            0
+        );
+
+    const highRisk =
+        scans.reduce(
+            (sum, scan) =>
+                sum + Number(
+                    scan.high_risk_count || 0
+                ),
+            0
+        );
+
+    const scores =
+        scans
+            .map(scan =>
+                Number(scan.security_score)
+            )
+            .filter(score =>
+                !Number.isNaN(score)
+            );
+
+    const average =
+        scores.length
+            ? Math.round(
+                scores.reduce(
+                    (a, b) => a + b,
+                    0
+                ) / scores.length
+            )
+            : 0;
+
+    document.getElementById(
+        "totalScans"
+    ).textContent = total;
+
+    document.getElementById(
+        "totalVulnerabilities"
+    ).textContent = vulnerabilities;
+
+    document.getElementById(
+        "totalHighRisk"
+    ).textContent = highRisk;
+
+    document.getElementById(
+        "averageScore"
+    ).textContent =
+        scores.length
+            ? `${average}/100`
+            : "—";
+}
+
+
+/* =========================
+   SCAN CARD
+========================= */
+
+function createScanCard(scan, index) {
+
+    const risk =
+        scan.risk_level || "Unknown";
+
+    const normalizedRisk = String(risk).toLowerCase();
+
+    const riskClass =
+        normalizedRisk === "critical" || normalizedRisk === "high"
+            ? "high"
+            : normalizedRisk === "medium"
+                ? "medium"
+                : normalizedRisk === "low"
+                    ? "low"
+                    : normalizedRisk === "secure" ||
+                      normalizedRisk === "none"
+                        ? "secure"
+                        : "low";
+
+    const score =
+        scan.security_score ?? "—";
+
+    const scanTime =
+        scan.scan_time || "Unknown";
+
+    const target =
+        scan.target || "Unknown target";
+
+    return `
+
+        <article class="scan-card">
+
+            <div class="scan-main">
+
+                <div class="target">
+
+                    <div class="target-label">
+                        Target
+                    </div>
+
+                    <div class="target-url">
+                        ${escapeHTML(target)}
+                    </div>
+
+                    <div class="scan-time">
+                        ${escapeHTML(scanTime)}
+                    </div>
+
+                </div>
+
+
+                <div class="metric">
+
+                    <label>
+                        Endpoints
+                    </label>
+
+                    <strong>
+                        ${scan.endpoints_count ?? 0}
+                    </strong>
+
+                </div>
+
+
+                <div class="metric">
+
+                    <label>
+                        Vulnerabilities
+                    </label>
+
+                    <strong>
+                        ${scan.vulnerability_count ?? 0}
+                    </strong>
+
+                </div>
+
+
+                <div class="metric">
+
+                    <label>
+                        Risk
+                    </label>
+
+                    <span class="risk ${riskClass}">
+                        ${escapeHTML(risk)}
+                    </span>
+
+                </div>
+
+
+                <div
+                    class="score"
+                    title="Security Score"
+                >
+                    ${score}
+                </div>
+
+            </div>
+
+
+            <div
+                class="details"
+                id="details-${index}"
+            >
+
+                <div class="details-grid">
+
+                    <div class="detail-box">
+
+                        <label>
+                            Scan ID
+                        </label>
+
+                        <span>
+                            #${scan.id ?? "—"}
+                        </span>
+
+                    </div>
+
+
+                    <div class="detail-box">
+
+                        <label>
+                            High Risk Findings
+                        </label>
+
+                        <span>
+                            ${scan.high_risk_count ?? 0}
+                        </span>
+
+                    </div>
+
+
+                    <div class="detail-box">
+
+                        <label>
+                            Risk Level
+                        </label>
+
+                        <span>
+                            ${escapeHTML(risk)}
+                        </span>
+
+                    </div>
+
+
+                    <div class="detail-box">
+
+                        <label>
+                            Security Score
+                        </label>
+
+                        <span>
+                            ${score}/100
+                        </span>
+
+                    </div>
+
+
+                    <div class="detail-box">
+
+                        <label>
+                            Endpoints Scanned
+                        </label>
+
+                        <span>
+                            ${scan.endpoints_count ?? 0}
+                        </span>
+
+                    </div>
+
+
+                    <div class="detail-box">
+
+                        <label>
+                            Vulnerabilities
+                        </label>
+
+                        <span>
+                            ${scan.vulnerability_count ?? 0}
+                        </span>
+
+                    </div>
+
+                </div>
+
+
+                <button
+                    class="view-btn"
+                    onclick="viewScan(${scan.id})"
+                >
+                    View Scan Details →
+                </button>
+
+            </div>
+
+
+            <button
+                class="view-btn"
+                style="margin: 0 20px 18px;"
+                onclick="toggleDetails(${index})"
+            >
+                View Summary
+            </button>
+
+        </article>
+    `;
+}
+
+
+/* =========================
+   DETAILS
+========================= */
+
+function toggleDetails(index) {
+
+    const details =
+        document.getElementById(
+            `details-${index}`
+        );
+
+    details.classList.toggle("open");
+}
+
+
+/* =========================
+   FUTURE DETAILS PAGE
+========================= */
+
+function viewScan(id) {
+
+    const numericId = Number(id);
+
+    if (!Number.isInteger(numericId) || numericId <= 0) {
+        return;
+    }
+
+    // Open the Flask Scan Details page for this scan.
+    window.location.href = `/scan/${numericId}`;
+}
+
+
+/* =========================
+   SECURITY
+========================= */
+
+function escapeHTML(value) {
+
+    const div =
+        document.createElement("div");
+
+    div.textContent =
+        String(value);
+
+    return div.innerHTML;
+}
+
+
+/* =========================
+   INITIAL LOAD
+========================= */
+
+loadHistory();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,1233 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>WebGuard | Scan Details</title>
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: Inter, Arial, sans-serif;
+            background: #080d12;
+            color: #e8eef5;
+            min-height: 100vh;
+        }
+
+        .app {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* =========================
+           SIDEBAR
+        ========================= */
+
+        .sidebar {
+            width: 220px;
+            background: #0d151d;
+            border-right: 1px solid #1d2a36;
+            padding: 28px 14px;
+            position: fixed;
+            top: 0;
+            bottom: 0;
+            left: 0;
+        }
+
+        .brand {
+            padding: 0 12px 35px;
+        }
+
+        .brand h1 {
+            font-size: 22px;
+            font-weight: 800;
+        }
+
+        .brand span {
+            display: block;
+            margin-top: 4px;
+            font-size: 11px;
+            color: #6d9bd0;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .nav {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .nav a {
+            text-decoration: none;
+            color: #91a5ba;
+            padding: 12px;
+            border-radius: 7px;
+            font-size: 14px;
+        }
+
+        .nav a:hover {
+            background: #162431;
+            color: white;
+        }
+
+        .nav a.active {
+            background: #1a2a39;
+            color: white;
+            font-weight: 600;
+        }
+
+        /* =========================
+           MAIN
+        ========================= */
+
+        .main {
+            margin-left: 220px;
+            width: calc(100% - 220px);
+            padding: 42px 48px;
+        }
+
+        .back {
+            display: inline-block;
+            margin-bottom: 22px;
+            color: #79a9d8;
+            text-decoration: none;
+            font-size: 13px;
+        }
+
+        .back:hover {
+            color: white;
+        }
+
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+        }
+
+        .page-header h2 {
+            font-size: 31px;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: #71899f;
+            font-size: 13px;
+        }
+
+        /* =========================
+           RISK BADGE
+        ========================= */
+
+        .risk-badge {
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .risk-high {
+            background: #4a2024;
+            color: #ff777d;
+        }
+
+        .risk-medium {
+            background: #453719;
+            color: #e9bd4c;
+        }
+
+        .risk-low {
+            background: #15374b;
+            color: #55b9ee;
+        }
+
+        .risk-secure {
+            background: #153b2b;
+            color: #57d68d;
+        }
+
+        /* =========================
+           TARGET CARD
+        ========================= */
+
+        .target-card {
+            background: #101820;
+            border: 1px solid #20303e;
+            border-radius: 10px;
+            padding: 22px;
+            margin-bottom: 20px;
+        }
+
+        .target-label {
+            color: #607b92;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: .8px;
+            margin-bottom: 8px;
+        }
+
+        .target-url {
+            font-size: 15px;
+            font-weight: 600;
+            word-break: break-all;
+        }
+
+        .scan-time {
+            margin-top: 7px;
+            color: #6f879d;
+            font-size: 11px;
+        }
+
+        /* =========================
+           METRICS
+        ========================= */
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 28px;
+        }
+
+        .metric-card {
+            background: #101820;
+            border: 1px solid #20303e;
+            border-radius: 10px;
+            padding: 20px;
+        }
+
+        .metric-label {
+            color: #708aa2;
+            font-size: 11px;
+            margin-bottom: 10px;
+        }
+
+        .metric-value {
+            font-size: 26px;
+            font-weight: 700;
+        }
+
+        /* =========================
+           SECTION
+        ========================= */
+
+        .section {
+            margin-top: 25px;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .section-header h3 {
+            font-size: 19px;
+        }
+
+        .section-count {
+            color: #71899f;
+            font-size: 12px;
+        }
+
+        /* =========================
+           FINDINGS
+        ========================= */
+
+        .finding {
+            background: #0e151c;
+            border: 1px solid #22313e;
+            border-radius: 9px;
+            margin-bottom: 11px;
+            padding: 19px;
+        }
+
+        .finding-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .finding h4 {
+            font-size: 15px;
+            margin-bottom: 8px;
+        }
+
+        .finding-description {
+            color: #8ca2b6;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+
+        .severity {
+            height: fit-content;
+            padding: 5px 9px;
+            border-radius: 15px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .severity.high {
+            background: #4a2024;
+            color: #ff777d;
+        }
+
+        .severity.medium {
+            background: #453719;
+            color: #e9bd4c;
+        }
+
+        .severity.low {
+            background: #15374b;
+            color: #55b9ee;
+        }
+
+        .severity.critical {
+            background: #541c24;
+            color: #ff5965;
+        }
+
+        .severity.unknown {
+            background: #26333f;
+            color: #a9bac9;
+        }
+
+        .finding-meta {
+            margin-top: 15px;
+            padding-top: 12px;
+            border-top: 1px solid #1d2a35;
+        }
+
+        .finding-meta p {
+            font-size: 11px;
+            color: #71899f;
+            margin-bottom: 6px;
+            line-height: 1.5;
+        }
+
+        .finding-meta strong {
+            color: #a7bacb;
+        }
+
+        /* =========================
+           ENDPOINTS
+        ========================= */
+
+        .endpoint {
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+            padding: 12px 15px;
+            background: #0e151c;
+            border: 1px solid #1e2d39;
+            border-radius: 7px;
+            margin-bottom: 7px;
+            font-size: 12px;
+        }
+
+        .endpoint-url {
+            word-break: break-all;
+            color: #b7c9d8;
+        }
+
+        .endpoint-status {
+            color: #57d68d;
+            white-space: nowrap;
+        }
+
+        /* =========================
+           EMPTY / ERROR
+        ========================= */
+
+        .state {
+            padding: 65px 20px;
+            text-align: center;
+            border: 1px dashed #263947;
+            border-radius: 10px;
+        }
+
+        .state-icon {
+            font-size: 35px;
+            margin-bottom: 15px;
+        }
+
+        .state h3 {
+            margin-bottom: 7px;
+        }
+
+        .state p {
+            color: #688096;
+            font-size: 13px;
+        }
+
+        /* =========================
+           RESPONSIVE
+        ========================= */
+
+        @media (max-width: 950px) {
+
+            .metrics {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+        }
+
+        @media (max-width: 700px) {
+
+            .sidebar {
+                width: 70px;
+            }
+
+            .brand h1,
+            .brand span {
+                display: none;
+            }
+
+            .main {
+                margin-left: 70px;
+                width: calc(100% - 70px);
+                padding: 25px 18px;
+            }
+
+            .metrics {
+                grid-template-columns: 1fr;
+            }
+
+            .page-header {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .finding-top {
+                flex-direction: column;
+            }
+
+            .endpoint {
+                flex-direction: column;
+            }
+        }
+
+    </style>
+
+</head>
+
+<body>
+
+<div class="app">
+
+    <!-- =========================
+         SIDEBAR
+    ========================= -->
+
+    <aside class="sidebar">
+
+        <div class="brand">
+            <h1>WebGuard</h1>
+
+            <span>
+                Security Scanner
+            </span>
+        </div>
+
+        <nav class="nav">
+
+            <a href="/">
+                Dashboard
+            </a>
+
+            <a
+                href="/history"
+            >
+                Scan History
+            </a>
+
+            <a href="#">
+                Reports
+            </a>
+
+        </nav>
+
+    </aside>
+
+
+    <!-- =========================
+         MAIN
+    ========================= -->
+
+    <main class="main">
+
+        <a
+            href="/history"
+            class="back"
+        >
+            ← Back to Scan History
+        </a>
+
+
+        <header class="page-header">
+
+            <div>
+
+                <h2>
+                    Scan Details
+                </h2>
+
+                <p>
+                    Detailed security assessment
+                    and vulnerability analysis.
+                </p>
+
+            </div>
+
+            <div
+                id="riskBadge"
+                class="risk-badge risk-low"
+            >
+                Loading
+            </div>
+
+        </header>
+
+
+        <!-- =========================
+             TARGET
+        ========================= -->
+
+        <section
+            id="targetCard"
+            class="target-card"
+        >
+            Loading scan information...
+        </section>
+
+
+        <!-- =========================
+             METRICS
+        ========================= -->
+
+        <section class="metrics">
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Endpoints
+                </div>
+
+                <div
+                    class="metric-value"
+                    id="endpointCount"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Vulnerabilities
+                </div>
+
+                <div
+                    class="metric-value"
+                    id="vulnerabilityCount"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    High Risk
+                </div>
+
+                <div
+                    class="metric-value"
+                    id="highRiskCount"
+                >
+                    —
+                </div>
+
+            </div>
+
+
+            <div class="metric-card">
+
+                <div class="metric-label">
+                    Security Score
+                </div>
+
+                <div
+                    class="metric-value"
+                    id="securityScore"
+                >
+                    —
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- =========================
+             ENDPOINTS
+        ========================= -->
+
+        <section class="section">
+
+            <div class="section-header">
+
+                <h3>
+                    Discovered Endpoints
+                </h3>
+
+                <span
+                    class="section-count"
+                    id="endpointLabel"
+                >
+                    —
+                </span>
+
+            </div>
+
+            <div id="endpoints"></div>
+
+        </section>
+
+
+        <!-- =========================
+             FINDINGS
+        ========================= -->
+
+        <section class="section">
+
+            <div class="section-header">
+
+                <h3>
+                    Security Findings
+                </h3>
+
+                <span
+                    class="section-count"
+                    id="findingLabel"
+                >
+                    —
+                </span>
+
+            </div>
+
+            <div id="findings"></div>
+
+        </section>
+
+    </main>
+
+</div>
+
+
+<script>
+
+    /* =========================
+       SCAN ID FROM FLASK
+    ========================= */
+
+    const scanId = Number("{{ scan_id }}");
+
+
+    /* =========================
+       LOAD SCAN
+    ========================= */
+
+    async function loadScan() {
+
+        try {
+
+            if (!scanId || Number.isNaN(scanId)) {
+                throw new Error("Invalid scan ID.");
+            }
+
+            const response = await fetch(
+                `/api/history/${scanId}`
+            );
+
+            if (!response.ok) {
+                throw new Error(
+                    `Server returned HTTP ${response.status}.`
+                );
+            }
+
+            const data = await response.json();
+
+            if (!data.success) {
+                throw new Error(
+                    data.error ||
+                    "Unable to load scan."
+                );
+            }
+
+            displayScan(data.scan);
+
+        } catch (error) {
+
+            document.getElementById(
+                "targetCard"
+            ).innerHTML = `
+
+                <div class="state">
+
+                    <div class="state-icon">
+                        ⚠
+                    </div>
+
+                    <h3>
+                        Unable to Load Scan
+                    </h3>
+
+                    <p>
+                        ${escapeHTML(
+                            error.message
+                        )}
+                    </p>
+
+                </div>
+
+            `;
+
+            document.getElementById(
+                "riskBadge"
+            ).textContent = "Error";
+
+            document.getElementById(
+                "riskBadge"
+            ).className =
+                "risk-badge risk-high";
+
+        }
+
+    }
+
+
+    /* =========================
+       DISPLAY SCAN
+    ========================= */
+
+    function displayScan(scan) {
+
+        const risk =
+            scan.risk_level || "Unknown";
+
+        const score =
+            scan.security_score ?? "—";
+
+        const findings =
+            Array.isArray(scan.findings)
+                ? scan.findings
+                : [];
+
+        const endpoints =
+            Array.isArray(scan.endpoints)
+                ? scan.endpoints
+                : (
+                    Array.isArray(
+                        scan.discovered_endpoints
+                    )
+                        ? scan.discovered_endpoints
+                        : []
+                );
+
+
+        /* =========================
+           TARGET
+        ========================= */
+
+        document.getElementById(
+            "targetCard"
+        ).innerHTML = `
+
+            <div class="target-label">
+                Target
+            </div>
+
+            <div class="target-url">
+                ${escapeHTML(
+                    scan.target || "Unknown"
+                )}
+            </div>
+
+            <div class="scan-time">
+
+                Scan ID #${escapeHTML(
+                    String(scan.id ?? scanId)
+                )}
+
+                &nbsp; • &nbsp;
+
+                ${escapeHTML(
+                    scan.scan_time || "Unknown"
+                )}
+
+            </div>
+
+        `;
+
+
+        /* =========================
+           METRICS
+        ========================= */
+
+        document.getElementById(
+            "endpointCount"
+        ).textContent =
+            scan.endpoints_count ??
+            endpoints.length;
+
+
+        document.getElementById(
+            "vulnerabilityCount"
+        ).textContent =
+            scan.vulnerability_count ??
+            findings.length;
+
+
+        document.getElementById(
+            "highRiskCount"
+        ).textContent =
+            scan.high_risk_count ?? 0;
+
+
+        document.getElementById(
+            "securityScore"
+        ).textContent =
+            `${score}/100`;
+
+
+        /* =========================
+           RISK BADGE
+        ========================= */
+
+        const badge =
+            document.getElementById(
+                "riskBadge"
+            );
+
+        badge.textContent = risk;
+
+        badge.className =
+            "risk-badge " +
+            getRiskClass(risk);
+
+
+        /* =========================
+           ENDPOINTS
+        ========================= */
+
+        renderEndpoints(
+            endpoints
+        );
+
+
+        /* =========================
+           FINDINGS
+        ========================= */
+
+        renderFindings(
+            findings
+        );
+
+    }
+
+
+    /* =========================
+       ENDPOINTS
+    ========================= */
+
+    function renderEndpoints(
+        endpoints
+    ) {
+
+        document.getElementById(
+            "endpointLabel"
+        ).textContent =
+            `${endpoints.length} discovered`;
+
+
+        if (!endpoints.length) {
+
+            document.getElementById(
+                "endpoints"
+            ).innerHTML = `
+
+                <div class="state">
+
+                    <div class="state-icon">
+                        ◫
+                    </div>
+
+                    <h3>
+                        No Endpoints
+                    </h3>
+
+                    <p>
+                        No endpoint information
+                        was stored for this scan.
+                        New scans will record every discovered endpoint.
+                    </p>
+
+                </div>
+
+            `;
+
+            return;
+        }
+
+
+        document.getElementById(
+            "endpoints"
+        ).innerHTML =
+
+            endpoints.map(
+                endpoint => {
+
+                    const endpointObject =
+                        endpoint &&
+                        typeof endpoint === "object"
+                            ? endpoint
+                            : null;
+
+                    const url =
+                        typeof endpoint === "string"
+                            ? endpoint
+                            : endpointObject?.url;
+
+                    const status =
+                        endpointObject
+                            ? endpointObject.status_code
+                            : "—";
+
+                    return `
+
+                        <div class="endpoint">
+
+                            <span
+                                class="endpoint-url"
+                            >
+                                ${escapeHTML(
+                                    url || "Unknown"
+                                )}
+                            </span>
+
+                            <span
+                                class="endpoint-status"
+                            >
+                                ${escapeHTML(
+                                    String(
+                                        status ?? "—"
+                                    )
+                                )}
+                            </span>
+
+                        </div>
+
+                    `;
+
+                }
+            ).join("");
+
+    }
+
+
+    /* =========================
+       FINDINGS
+    ========================= */
+
+    function renderFindings(
+        findings
+    ) {
+
+        document.getElementById(
+            "findingLabel"
+        ).textContent =
+            `${findings.length} detected`;
+
+
+        if (!findings.length) {
+
+            document.getElementById(
+                "findings"
+            ).innerHTML = `
+
+                <div class="state">
+
+                    <div class="state-icon">
+                        ✓
+                    </div>
+
+                    <h3>
+                        No Vulnerabilities Detected
+                    </h3>
+
+                    <p>
+                        The scan did not record
+                        any security findings.
+                    </p>
+
+                </div>
+
+            `;
+
+            return;
+        }
+
+
+        document.getElementById(
+            "findings"
+        ).innerHTML =
+
+            findings.map(
+                finding => {
+
+                    const severity =
+                        finding.severity ||
+                        "Unknown";
+
+                    const parameter =
+                        finding.parameter ||
+                        "None";
+
+                    const affectedEndpoints =
+                        Array.isArray(finding.affected_endpoints)
+                            ? finding.affected_endpoints
+                            : [];
+
+                    const url =
+                        finding.url ||
+                        finding.affected_endpoint ||
+                        affectedEndpoints[0] ||
+                        "Unknown";
+
+                    const severityClass =
+                        String(
+                            severity
+                        )
+                        .toLowerCase()
+                        .replace(
+                            /[^a-z]/g,
+                            ""
+                        );
+
+                    return `
+
+                        <article
+                            class="finding"
+                        >
+
+                            <div
+                                class="finding-top"
+                            >
+
+                                <div>
+
+                                    <h4>
+                                        ${escapeHTML(
+                                            finding.name ||
+                                            finding.type ||
+                                            "Security Finding"
+                                        )}
+                                    </h4>
+
+                                    <p
+                                        class="finding-description"
+                                    >
+                                        ${escapeHTML(
+                                            finding.description ||
+                                            "No description available."
+                                        )}
+                                    </p>
+
+                                </div>
+
+
+                                <span
+                                    class="severity ${severityClass}"
+                                >
+                                    ${escapeHTML(
+                                        severity
+                                    )}
+                                </span>
+
+                            </div>
+
+
+                            <div
+                                class="finding-meta"
+                            >
+
+                                <p>
+
+                                    <strong>
+                                        Affected Endpoint:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        url
+                                    )}
+
+                                </p>
+
+
+                                <p>
+
+                                    <strong>
+                                        Parameter:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        parameter
+                                    )}
+
+                                </p>
+
+                                ${
+                                    affectedEndpoints.length > 1
+                                        ? `
+                                            <p>
+                                                <strong>
+                                                    Affected Endpoints:
+                                                </strong>
+                                                ${escapeHTML(
+                                                    affectedEndpoints.join(" • ")
+                                                )}
+                                            </p>
+                                          `
+                                        : ""
+                                }
+
+
+                                <p>
+
+                                    <strong>
+                                        Detection:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        finding.detection ||
+                                        "Automated analysis"
+                                    )}
+
+                                </p>
+
+
+                                <p>
+
+                                    <strong>
+                                        Recommendation:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        finding.recommendation ||
+                                        "Review and remediate this finding."
+                                    )}
+
+                                </p>
+
+                            </div>
+
+                        </article>
+
+                    `;
+
+                }
+            ).join("");
+
+    }
+
+
+    /* =========================
+       RISK CLASS
+    ========================= */
+
+    function getRiskClass(
+        risk
+    ) {
+
+        switch (
+            String(risk).toLowerCase()
+        ) {
+
+            case "critical":
+                return "risk-high";
+
+            case "high":
+                return "risk-high";
+
+            case "medium":
+                return "risk-medium";
+
+            case "low":
+                return "risk-low";
+
+            case "secure":
+            case "none":
+                return "risk-secure";
+
+            default:
+                return "risk-low";
+
+        }
+
+    }
+
+
+    /* =========================
+       HTML ESCAPING
+    ========================= */
+
+    function escapeHTML(
+        value
+    ) {
+
+        const div =
+            document.createElement(
+                "div"
+            );
+
+        div.textContent =
+            String(value);
+
+        return div.innerHTML;
+
+    }
+
+
+    /* =========================
+       START
+    ========================= */
+
+    loadScan();
+
+</script>
+
+</body>
+
+</html>
