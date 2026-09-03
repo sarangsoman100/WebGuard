@@ -19,6 +19,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const scanBadge =
         document.getElementById("scanBadge");
 
+    const scanModeOptions =
+        document.querySelectorAll(".scan-mode-option");
+
+    const modeStatus =
+        document.getElementById("modeStatus");
+
+    let selectedScanMode = "standard";
+
 
     // =========================================================
     // DASHBOARD STATISTICS
@@ -104,6 +112,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
+    // =========================================================
+    // SCAN MODE HELPERS
+    // =========================================================
+
+    function getModeLabel(mode) {
+
+        const labels = {
+            passive: "Passive",
+            standard: "Standard",
+            active: "Active"
+        };
+
+        return labels[
+            String(mode || "standard").toLowerCase()
+        ] || "Standard";
+    }
+
+
     function setLoading(state) {
 
         if (!scanButton) {
@@ -115,12 +141,64 @@ document.addEventListener("DOMContentLoaded", () => {
         if (state) {
 
             scanButton.textContent =
-                "🧠 Smart Scanning...";
+                `🧠 ${getModeLabel(selectedScanMode)} Scanning...`;
 
         } else {
 
             scanButton.textContent =
-                "🧠 Start Smart Scan";
+                `🔍 Start ${getModeLabel(selectedScanMode)} Scan`;
+        }
+    }
+
+
+    function setSelectedMode(mode) {
+
+        const normalized =
+            String(mode || "standard").toLowerCase();
+
+        if (
+            ![
+                "passive",
+                "standard",
+                "active"
+            ].includes(normalized)
+        ) {
+            return;
+        }
+
+        selectedScanMode = normalized;
+
+        scanModeOptions.forEach(option => {
+
+            const isSelected =
+                option.dataset.mode === selectedScanMode;
+
+            option.classList.toggle(
+                "selected",
+                isSelected
+            );
+
+            option.setAttribute(
+                "aria-checked",
+                isSelected
+                    ? "true"
+                    : "false"
+            );
+        });
+
+        if (modeStatus) {
+
+            modeStatus.textContent =
+                getModeLabel(selectedScanMode);
+        }
+
+        if (
+            scanButton &&
+            !scanButton.disabled
+        ) {
+
+            scanButton.textContent =
+                `🔍 Start ${getModeLabel(selectedScanMode)} Scan`;
         }
     }
 
@@ -438,7 +516,12 @@ document.addEventListener("DOMContentLoaded", () => {
                     </strong>
 
                     <span>
-                        Smart Scan
+                        ${escapeHTML(
+                            getModeLabel(
+                                data.mode ||
+                                selectedScanMode
+                            )
+                        )}
                     </span>
 
                 </div>
@@ -564,7 +647,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
-    // SMART SCAN
+    // START SCAN
     // =========================================================
 
     async function startScan() {
@@ -624,7 +707,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
 
                 <h3>
-                    Smart Scan Running
+                    ${escapeHTML(
+                        getModeLabel(
+                            selectedScanMode
+                        )
+                    )} Scan Running
                 </h3>
 
                 <p id="progressText">
@@ -660,15 +747,6 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
 
-            await new Promise(
-                resolve =>
-                    setTimeout(
-                        resolve,
-                        350
-                    )
-            );
-
-
             // -------------------------------------------------
             // CRAWLING
             // -------------------------------------------------
@@ -683,15 +761,6 @@ document.addEventListener("DOMContentLoaded", () => {
                 progress.textContent =
                     "✓ Crawling endpoints";
             }
-
-
-            await new Promise(
-                resolve =>
-                    setTimeout(
-                        resolve,
-                        350
-                    )
-            );
 
 
             // -------------------------------------------------
@@ -726,7 +795,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         },
 
                         body: JSON.stringify({
-                            url: url
+                            url: url,
+                            mode: selectedScanMode
                         })
                     }
                 );
@@ -757,15 +827,6 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
 
-            await new Promise(
-                resolve =>
-                    setTimeout(
-                        resolve,
-                        300
-                    )
-            );
-
-
             // -------------------------------------------------
             // DISPLAY RESULTS
             // -------------------------------------------------
@@ -779,7 +840,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             showStatus(
-                "Smart Scan completed."
+                `${getModeLabel(
+                    selectedScanMode
+                )} scan completed.`
             );
 
 
@@ -836,6 +899,58 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
+    // SCAN MODE EVENTS
+    // =========================================================
+
+    scanModeOptions.forEach(option => {
+
+        option.addEventListener(
+            "click",
+            () => {
+
+                if (
+                    scanButton &&
+                    scanButton.disabled
+                ) {
+                    return;
+                }
+
+                setSelectedMode(
+                    option.dataset.mode
+                );
+            }
+        );
+
+
+        option.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    (
+                        event.key === "Enter" ||
+                        event.key === " "
+                    ) &&
+                    !(
+                        scanButton &&
+                        scanButton.disabled
+                    )
+                ) {
+
+                    event.preventDefault();
+
+                    setSelectedMode(
+                        option.dataset.mode
+                    );
+                }
+
+            }
+        );
+
+    });
+
+
+    // =========================================================
     // EVENTS
     // =========================================================
 
@@ -864,6 +979,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // =========================================================
     // INITIAL DASHBOARD
     // =========================================================
+
+    setSelectedMode("standard");
 
     loadHistoryStats();
 
