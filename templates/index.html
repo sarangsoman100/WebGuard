@@ -73,34 +73,56 @@
             </div>
 
 
-            <!-- Smart Scan Info -->
-            <div class="smart-scan-info">
+            <!-- Scan Mode Selector -->
+            <div class="scan-mode-panel">
 
-                <div class="smart-scan-icon">
-                    🧠
-                </div>
-
-                <div class="smart-scan-content">
-
-                    <div class="smart-scan-title">
-                        Smart Scan
+                <div class="scan-mode-heading">
+                    <div>
+                        <div class="scan-mode-title">Scan Mode</div>
+                        <div class="scan-mode-description">
+                            Choose how deeply WebGuard should test the authorized target.
+                        </div>
                     </div>
 
-                    <div class="smart-scan-description">
-                        WebGuard automatically selects the appropriate
-                        security checks based on the target.
+                    <div class="scan-mode-status">
+                        <span class="status-dot"></span>
+                        <span id="modeStatus">Standard</span>
                     </div>
+                </div>
+
+                <div class="scan-mode-options" role="radiogroup" aria-label="Scan mode">
+
+                    <button type="button" class="scan-mode-option"
+                            data-mode="passive" role="radio" aria-checked="false">
+                        <span class="scan-mode-icon">◌</span>
+                        <span class="scan-mode-copy">
+                            <strong>Passive</strong>
+                            <small>Low-impact discovery and configuration checks.</small>
+                        </span>
+                    </button>
+
+                    <button type="button" class="scan-mode-option selected"
+                            data-mode="standard" role="radio" aria-checked="true">
+                        <span class="scan-mode-icon">◉</span>
+                        <span class="scan-mode-copy">
+                            <strong>Standard</strong>
+                            <small>Balanced crawling, parameters, and vulnerability tests.</small>
+                        </span>
+                        <span class="scan-mode-badge">Recommended</span>
+                    </button>
+
+                    <button type="button" class="scan-mode-option"
+                            data-mode="active" role="radio" aria-checked="false">
+                        <span class="scan-mode-icon">⚡</span>
+                        <span class="scan-mode-copy">
+                            <strong>Active</strong>
+                            <small>Deeper verification and differential security probes.</small>
+                        </span>
+                    </button>
 
                 </div>
 
-                <div class="smart-scan-status">
-                    <span class="status-dot"></span>
-                    Automatic
-                </div>
-
-            </div>
-
-            <div class="scan-input">
+            </div><div class="scan-input">
 
                 <input
                     type="url"
@@ -110,7 +132,7 @@
                 >
 
                 <button id="scanButton">
-                    🔍 Start Smart Scan
+                    🔍 Start Standard Scan
                 </button>
 
             </div>
@@ -255,88 +277,3 @@
 
 </body>
 </html>
-
-
-
-<style>
-        /* Smart Scan */
-
-.smart-scan-info {
-    margin-top: 20px;
-    padding: 15px 18px;
-
-    display: flex;
-    align-items: center;
-    gap: 14px;
-
-    border: 1px solid #26394a;
-    border-radius: 10px;
-
-    background: #0d151d;
-}
-
-.smart-scan-icon {
-    width: 38px;
-    height: 38px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    border-radius: 8px;
-
-    background: #172a3b;
-
-    font-size: 20px;
-}
-
-.smart-scan-content {
-    flex: 1;
-}
-
-.smart-scan-title {
-    color: #f4f7fb;
-
-    font-size: 14px;
-    font-weight: 700;
-
-    margin-bottom: 4px;
-}
-
-.smart-scan-description {
-    color: #7594b4;
-
-    font-size: 12px;
-    line-height: 1.45;
-}
-
-.smart-scan-status {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-
-    color: #70aef0;
-
-    font-size: 12px;
-    font-weight: 600;
-}
-
-.smart-scan-status .status-dot {
-    width: 7px;
-    height: 7px;
-
-    border-radius: 50%;
-}
-
-@media (max-width: 700px) {
-
-    .smart-scan-info {
-        align-items: flex-start;
-    }
-
-    .smart-scan-status {
-        display: none;
-    }
-
-}
-    </style>
