@@ -230,3 +230,132 @@ def calculate_risk(findings):
 
         "risk_level": risk_level
     }
+
+def calculate_overall_risk(results):
+    """
+    Calculate one overall risk summary for a complete scan.
+
+    Each result should contain a `risk` dictionary generated
+    by calculate_risk().
+    """
+
+    summary = {
+        "targets": 0,
+        "total": 0,
+        "critical": 0,
+        "high": 0,
+        "medium": 0,
+        "low": 0,
+        "vulnerabilities": 0,
+        "potential_vulnerabilities": 0,
+        "misconfigurations": 0,
+        "informational": 0,
+        "risk_points": 0.0,
+        "security_score": 100,
+        "risk_level": "Secure",
+    }
+
+    if not results:
+        return summary
+
+    summary["targets"] = len(results)
+
+    for result in results:
+
+        if not isinstance(result, dict):
+            continue
+
+        risk = result.get("risk")
+
+        if not isinstance(risk, dict):
+            continue
+
+        summary["total"] += int(
+            risk.get("total", 0)
+        )
+
+        summary["critical"] += int(
+            risk.get("critical", 0)
+        )
+
+        summary["high"] += int(
+            risk.get("high", 0)
+        )
+
+        summary["medium"] += int(
+            risk.get("medium", 0)
+        )
+
+        summary["low"] += int(
+            risk.get("low", 0)
+        )
+
+        summary["vulnerabilities"] += int(
+            risk.get("vulnerabilities", 0)
+        )
+
+        summary["potential_vulnerabilities"] += int(
+            risk.get("potential_vulnerabilities", 0)
+        )
+
+        summary["misconfigurations"] += int(
+            risk.get("misconfigurations", 0)
+        )
+
+        summary["informational"] += int(
+            risk.get("informational", 0)
+        )
+
+        summary["risk_points"] += float(
+            risk.get("risk_points", 0)
+        )
+
+    # --------------------------------------------------------
+    # Overall security score
+    # --------------------------------------------------------
+
+    summary["risk_points"] = round(
+        summary["risk_points"],
+        2,
+    )
+
+    summary["security_score"] = round(
+        max(
+            0,
+            min(
+                100,
+                100 - summary["risk_points"],
+            ),
+        )
+    )
+
+    # --------------------------------------------------------
+    # Overall risk level
+    # --------------------------------------------------------
+
+    if summary["critical"] > 0:
+
+        summary["risk_level"] = "Critical"
+
+    elif summary["high"] > 0:
+
+        if summary["vulnerabilities"] > 0:
+            summary["risk_level"] = "High"
+        elif summary["potential_vulnerabilities"] > 0:
+            summary["risk_level"] = "Medium"
+        else:
+            summary["risk_level"] = "Medium"
+
+    elif summary["medium"] > 0:
+
+        summary["risk_level"] = "Medium"
+
+    elif summary["low"] > 0:
+
+        summary["risk_level"] = "Low"
+
+    else:
+
+        summary["risk_level"] = "Secure"
+
+    return summary

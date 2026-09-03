@@ -11,7 +11,7 @@ CSRF_TOKEN_NAMES = {
     "csrftoken",
     "csrf-token",
     "_csrf",
-    "_csrf_token",
+    "_csrf_token", 
     "xsrf",
     "xsrf_token",
     "xsrf-token",

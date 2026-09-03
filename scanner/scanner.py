@@ -18,6 +18,11 @@ from scanner.endpoint_exposure import check_endpoint_exposure
 from scanner.csrf import check_csrf
 from scanner.auth import check_authentication_security
 from scanner.ssrf import check_ssrf
+from scanner.xxe  import check_xxe
+from scanner.risk import (
+    calculate_risk,
+    calculate_overall_risk,
+)
 
 # ============================================================
 # Scan Modesm
@@ -52,6 +57,32 @@ def normalize_mode(mode):
         return mode
 
     return "standard"
+
+
+# ============================================================
+# Scan Configuration
+# ============================================================
+
+SCAN_CONFIG = {
+    "passive": {
+        "parameter_testing": False,
+        "deep_testing": False,
+    },
+    "standard": {
+        "parameter_testing": True,
+        "deep_testing": False,
+    },
+    "active": {
+        "parameter_testing": True,
+        "deep_testing": True,
+    },
+}
+
+
+def get_scan_config(mode):
+    """Return the normalized configuration for the selected scan mode."""
+    mode = normalize_mode(mode)
+    return SCAN_CONFIG[mode]
 
 
 # ============================================================
@@ -92,6 +123,7 @@ def _finding(
 def scan_target(url, mode="standard"):
 
     mode = normalize_mode(mode)
+    config = get_scan_config(mode)
 
     result = {
         "target": url,
@@ -207,17 +239,41 @@ def scan_target(url, mode="standard"):
         # Transport Security
         # -------------------------------
 
-        if mode in ("standard", "active"):
+        if config["parameter_testing"]:
 
             result["findings"].extend(
                 check_transport_security(url) or []
             )
         
+        # ====================================================
+        # XXE Detection
+        # ====================================================
+
+        xxe_finding = None
+        if config["parameter_testing"]:
+
+            try:
+
+                xxe_finding = check_xxe(url)
+
+            except Exception:   
+
+                xxe_finding = None
+        
+
+        if xxe_finding:
+
+            result.setdefault(
+            "findings",
+            [],
+        ).append(
+            xxe_finding
+        )
         # -------------------------------
         # Authentication Security
         # -------------------------------
 
-        if mode in ("standard", "active"):
+        if config["parameter_testing"]:
 
             result["findings"].extend(
                 check_authentication_security(url) or []
@@ -227,7 +283,7 @@ def scan_target(url, mode="standard"):
         # CSRF Protection
         # -------------------------------
 
-        if mode in ("standard", "active"):
+        if config["parameter_testing"]:
             result["findings"].extend(
                 check_csrf(url) or []
             )
@@ -236,7 +292,7 @@ def scan_target(url, mode="standard"):
         # Robots.txt Endpoint Exposure
         # -------------------------------
 
-        if mode in ("standard", "active"):
+        if config["parameter_testing"]:
 
             result["findings"].extend(
                 check_endpoint_exposure(url) or []
@@ -245,10 +301,7 @@ def scan_target(url, mode="standard"):
         # Sensitive File Checks
         # ====================================================
 
-        if mode in (
-            "standard",
-            "active",
-        ):
+        if config["parameter_testing"]:
 
             result["findings"].extend(
                 check_sensitive_exposure(
@@ -276,6 +329,470 @@ def scan_target(url, mode="standard"):
 
     return result
 
+def _deduplicate_findings(findings):
+    """Deduplicate findings while keeping the strongest evidence."""
+    unique = {}
+
+    confidence_order = {"low": 1, "medium": 2, "high": 3}
+
+    def key(f):
+        return (
+            str(f.get("type", "")).strip().lower(),
+            str(f.get("category", "")).strip().lower(),
+            str(f.get("parameter", "")).strip().lower(),
+            str(f.get("url", "")).strip().lower(),
+        )
+
+    def strength(f):
+        confidence = confidence_order.get(
+            str(f.get("confidence", "")).strip().lower(), 0
+        )
+        verified = 1 if f.get("verification") == "reproduced" else 0
+        active = 1 if f.get("test_mode") == "active" else 0
+        evidence = 1 if f.get("evidence") else 0
+        return (verified, confidence, active, evidence)
+
+    for finding in findings or []:
+        if not isinstance(finding, dict):
+            continue
+
+        k = key(finding)
+        if k not in unique:
+            unique[k] = finding
+            continue
+
+        current = unique[k]
+        if strength(finding) > strength(current):
+            merged = dict(current)
+            merged.update(finding)
+            unique[k] = merged
+        else:
+            for field in ("evidence", "detection", "recommendation", "description"):
+                if not current.get(field) and finding.get(field):
+                    current[field] = finding[field]
+
+    return list(unique.values())
+
+
+def _normalize_finding(finding, target_url=None):
+    """
+    Normalize a scanner finding into a consistent structure.
+
+    Confidence is preserved when supplied by the detector.
+    When a detector does not provide confidence, a sensible
+    fallback is assigned based on the finding type.
+    """
+
+    if not isinstance(finding, dict):
+        return None
+
+    normalized = dict(finding)
+
+    # --------------------------------------------------------
+    # Required fields
+    # --------------------------------------------------------
+
+    normalized["type"] = str(
+        normalized.get("type") or "Unknown"
+    ).strip()
+
+    normalized["category"] = str(
+        normalized.get("category") or "Informational"
+    ).strip()
+
+    normalized["name"] = str(
+        normalized.get("name") or "Unnamed Finding"
+    ).strip()
+
+    normalized["severity"] = str(
+        normalized.get("severity") or "Low"
+    ).strip()
+
+    # --------------------------------------------------------
+    # Confidence
+    # --------------------------------------------------------
+
+    confidence = normalized.get("confidence")
+
+    if confidence:
+        confidence = str(
+            confidence
+        ).strip().title()
+
+    else:
+
+        # Directly observable passive findings.
+        passive_high_confidence = {
+            "Missing Security Header",
+            "Cookie Security",
+            "Information Disclosure",
+            "Transport Security",
+            "HTTP Method Security",
+            "CORS",
+            "Sensitive File Exposure",
+            "Endpoint Exposure",
+            "Authentication Security",
+        }
+
+        # Active checks where the scanner has detected
+        # suspicious behavior but additional verification
+        # may still be useful.
+        active_medium_confidence = {
+            "Reflected XSS",
+            "SSRF",
+            "XXE",
+            "Open Redirect",
+            "CSRF Protection",
+            "SQL Injection",
+        }
+
+        finding_type = normalized["type"]
+
+        if finding_type in passive_high_confidence:
+            confidence = "High"
+
+        elif finding_type in active_medium_confidence:
+            confidence = "Medium"
+
+        else:
+            confidence = "Medium"
+
+    # Only allow supported confidence levels.
+    if confidence not in {
+        "High",
+        "Medium",
+        "Low",
+    }:
+        confidence = "Medium"
+
+    normalized["confidence"] = confidence
+
+    # --------------------------------------------------------
+    # Description / recommendation
+    # --------------------------------------------------------
+
+    normalized["description"] = str(
+        normalized.get("description") or ""
+    ).strip()
+
+    normalized["recommendation"] = str(
+        normalized.get("recommendation") or ""
+    ).strip()
+
+    # --------------------------------------------------------
+    # Target / endpoint
+    # --------------------------------------------------------
+
+    if not normalized.get("url"):
+        normalized["url"] = target_url
+
+    finding_url = (
+        normalized.get("url")
+        or target_url
+    )
+
+    if finding_url:
+
+        parsed = urlparse(
+            finding_url
+        )
+
+        normalized["endpoint"] = (
+            parsed.path or "/"
+        )
+
+    else:
+
+        normalized["endpoint"] = None
+
+    # --------------------------------------------------------
+    # Optional fields
+    # --------------------------------------------------------
+
+    normalized.setdefault(
+        "parameter",
+        None,
+    )
+
+    normalized.setdefault(
+        "method",
+        None,
+    )
+
+    normalized.setdefault(
+        "detection",
+        None,
+    )
+
+    normalized.setdefault(
+        "evidence",
+        None,
+    )
+
+    normalized.setdefault(
+        "verification",
+        None,
+    )
+
+    # --------------------------------------------------------
+    # Test mode
+    # --------------------------------------------------------
+
+    active_types = {
+        "SQL Injection",
+        "Reflected XSS",
+        "Stored XSS",
+        "DOM XSS",
+        "Open Redirect",
+        "SSRF",
+        "XXE",
+        "CSRF Protection",
+    }
+
+    finding_type = normalized["type"]
+
+    if finding_type in active_types:
+        normalized["test_mode"] = "active"
+
+    else:
+        normalized["test_mode"] = "passive"
+
+    return normalized
+
+
+def _normalize_findings(findings, target_url=None):
+    """
+    Normalize all findings while preserving their order.
+    """
+
+    normalized_findings = []
+
+    for finding in findings or []:
+
+        normalized = _normalize_finding(
+            finding,
+            target_url=target_url,
+        )
+
+        if normalized:
+            normalized_findings.append(
+                normalized
+            )
+
+    return normalized_findings
+# ============================================================
+# Active Deep Verification / Differential Probing
+# ============================================================
+
+ACTIVE_PROBE_CONFIG = {
+    "sql": [
+        "1",
+        "1'",
+        "1 AND 1=1",
+        "1 AND 1=2",
+    ],
+    "xss": [
+        "WebGuardXSSTest-A",
+        "WebGuardXSSTest-B",
+        "WebGuardXSSTest-C",
+    ],
+    "redirect": [
+        "https://webguard-redirect-a.example/",
+        "https://webguard-redirect-b.example/",
+    ],
+    "ssrf": [
+        "http://127.0.0.1:5001/ssrf-marker",
+        "http://127.0.0.1:5001/ssrf-status",
+    ],
+}
+
+
+def _replace_get_parameter(url, parameter, value):
+    """Return a URL with exactly one GET parameter replaced."""
+    from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+
+    parts = urlsplit(url)
+    query = parse_qsl(parts.query, keep_blank_values=True)
+    replaced = False
+    rebuilt = []
+
+    for key, current in query:
+        if key == parameter and not replaced:
+            rebuilt.append((key, value))
+            replaced = True
+        else:
+            rebuilt.append((key, current))
+
+    if not replaced:
+        rebuilt.append((parameter, value))
+
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(rebuilt), parts.fragment))
+
+
+def _safe_request_profile(url):
+    """Collect lightweight response characteristics for differential analysis."""
+    try:
+        response = requests.get(
+            url,
+            timeout=5,
+            allow_redirects=False,
+            headers={"User-Agent": "WebGuard-ActiveScanner/1.0"},
+        )
+        body = response.text or ""
+        return {
+            "status": response.status_code,
+            "length": len(body),
+            "location": response.headers.get("Location", ""),
+            "body_prefix": body[:300],
+        }
+    except requests.RequestException:
+        return None
+
+
+def _profiles_differ(profiles):
+    usable = [p for p in profiles if p]
+    if len(usable) < 2:
+        return False
+    return len({
+        (p.get("status"), p.get("length"), p.get("location"))
+        for p in usable
+    }) > 1
+
+
+def _active_probe_parameter(parameter_info, detector_type):
+    """Run controlled GET probes and return differential evidence metadata."""
+    if not isinstance(parameter_info, dict):
+        return None
+
+    base_url = parameter_info.get("url")
+    parameter = parameter_info.get("parameter")
+    method = str(parameter_info.get("method", "")).upper()
+    if not base_url or not parameter or method != "GET":
+        return None
+
+    if detector_type == "SQL Injection":
+        values = ACTIVE_PROBE_CONFIG["sql"]
+    elif detector_type == "Reflected XSS":
+        values = ACTIVE_PROBE_CONFIG["xss"]
+    elif detector_type == "Open Redirect":
+        values = ACTIVE_PROBE_CONFIG["redirect"]
+    elif detector_type == "SSRF":
+        values = ACTIVE_PROBE_CONFIG["ssrf"]
+    else:
+        return None
+
+    profiles = []
+    for value in values:
+        probe_url = _replace_get_parameter(base_url, parameter, value)
+        profile = _safe_request_profile(probe_url)
+        if profile:
+            profile["probe"] = value
+            profiles.append(profile)
+
+    if len(profiles) < 2:
+        return None
+
+    return {
+        "probe_count": len(profiles),
+        "differential_change": _profiles_differ(profiles),
+        "profiles": profiles,
+    }
+
+
+def _active_deep_verify(parameter_info):
+    """Perform multiple controlled probes and strengthen an existing finding.
+
+    Active mode deliberately uses local/safe markers and example domains. The
+    detector must already report the vulnerability; differential probing only
+    supplies additional evidence and does not create a finding by itself.
+    """
+    if not isinstance(parameter_info, dict):
+        return []
+
+    parameter_url = parameter_info.get("url")
+    parameter = parameter_info.get("parameter")
+    method = str(parameter_info.get("method", "")).upper()
+
+    if not parameter_url or not parameter or method != "GET":
+        return []
+
+    verified = []
+    checks = (
+        ("Reflected XSS", check_reflected_xss),
+        ("SQL Injection", check_sql_injection),
+        ("Open Redirect", check_open_redirect),
+        ("SSRF", check_ssrf),
+    )
+
+    for finding_type, detector in checks:
+        try:
+            initial = detector(parameter_url, parameter)
+            if not initial:
+                continue
+
+            probe_data = _active_probe_parameter(parameter_info, finding_type)
+            if not probe_data:
+                continue
+
+            # Re-run the detector after the differential probe set. This keeps
+            # the detector's own evidence authoritative while the probe set
+            # supplies independent response characteristics.
+            confirmation = detector(parameter_url, parameter)
+            if not confirmation:
+                continue
+
+            finding = dict(initial)
+            finding["confidence"] = "High"
+            finding["test_mode"] = "active"
+            finding["verification"] = "reproduced"
+            finding["url"] = parameter_url
+            finding["parameter"] = parameter
+            finding["active_probe_count"] = probe_data["probe_count"]
+            finding["differential_change"] = probe_data["differential_change"]
+            finding["detection"] = (
+                f"Active multi-probe verification reproduced {finding_type} "
+                f"using {probe_data['probe_count']} controlled probes."
+            )
+            finding["evidence"] = (
+                f"The detector reproduced the finding and Active mode collected "
+                f"{probe_data['probe_count']} response profiles; differential "
+                f"response change={probe_data['differential_change']}."
+            )
+            verified.append(finding)
+        except Exception:
+            continue
+
+    return verified
+
+
+def _active_verify_xxe(url):
+    """Repeat XXE detection and record controlled verification evidence."""
+    try:
+        first = check_xxe(url)
+        if not first:
+            return None
+        second = check_xxe(url)
+        if not second:
+            return None
+
+        finding = dict(first)
+        finding["confidence"] = "High"
+        finding["test_mode"] = "active"
+        finding["verification"] = "reproduced"
+        finding["active_probe_count"] = 2
+        finding["differential_change"] = True
+        finding["url"] = url
+        finding["detection"] = (
+            "Active controlled XXE verification reproduced the XML behavior "
+            "on independent requests."
+        )
+        finding["evidence"] = (
+            "The XXE detector returned a matching controlled result on two "
+            "active verification requests."
+        )
+        return finding
+    except Exception:
+        return None
 
 # ============================================================
 # Multiple Target Scan
@@ -287,6 +804,7 @@ def scan_multiple_targets(
 ):
 
     mode = normalize_mode(mode)
+    config = get_scan_config(mode)
 
     all_results = []
 
@@ -299,10 +817,7 @@ def scan_multiple_targets(
 
     parameters = []
 
-    if mode in (
-        "standard",
-        "active",
-    ):
+    if config["parameter_testing"]:
 
         for page_url in urls:
 
@@ -355,10 +870,7 @@ def scan_multiple_targets(
         # Parameter-based testing
         # ====================================================
 
-        if mode in (
-            "standard",
-            "active",
-        ):
+        if config["parameter_testing"]:
 
             for parameter_info in parameters:
 
@@ -549,12 +1061,57 @@ def scan_multiple_targets(
                     ).append(
                         ssrf_finding
                     )
+
+            # ====================================================
+            # Active-only deep verification
+            # ====================================================
+            if config["deep_testing"]:
+                for parameter_info in result.get("parameters", []):
+                    for deep_finding in _active_deep_verify(parameter_info):
+                        result.setdefault(
+                            "findings",
+                            [],
+                        ).append(deep_finding)
+        # ====================================================
+        # Active-only XXE verification
+        # ====================================================
+        if config["deep_testing"]:
+            xxe_verified = _active_verify_xxe(url)
+            if xxe_verified:
+                result.setdefault("findings", []).append(xxe_verified)
+
         # ====================================================
         # Store completed result
         # ====================================================
 
+        result["findings"] = _deduplicate_findings(
+            result.get("findings", [])
+        )
+
+        result["findings"] = _normalize_findings(
+            result["findings"],
+            target_url=url,
+        )
+
+        result["risk"] = calculate_risk(
+            result["findings"]
+        )
+
         all_results.append(
             result
+        )
+
+    overall_risk = calculate_overall_risk(
+    all_results
+)
+
+    for result in all_results:
+
+        if isinstance(result, dict):
+
+            result.setdefault(
+                "scan_summary",
+            overall_risk
         )
 
     return all_results

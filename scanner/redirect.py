@@ -2,6 +2,10 @@ import requests
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 
+# ============================================================
+# Supported Redirect Parameters
+# ============================================================
+
 REDIRECT_PARAMETERS = {
     "url",
     "uri",
@@ -20,33 +24,58 @@ REDIRECT_PARAMETERS = {
 }
 
 
+# ============================================================
+# Controlled Test Destination
+# ============================================================
+
 TEST_DESTINATION = "https://webguard-redirect-test.example/"
 
+
+# ============================================================
+# Replace / Add Parameter
+# ============================================================
 
 def _replace_parameter(url, parameter, value):
     parsed = urlparse(url)
 
     query = parse_qsl(
         parsed.query,
-        keep_blank_values=True
+        keep_blank_values=True,
     )
 
     updated = []
+    parameter_found = False
 
     for key, current_value in query:
 
         if key.lower() == parameter.lower():
+
             updated.append(
                 (key, value)
             )
+
+            parameter_found = True
+
         else:
+
             updated.append(
                 (key, current_value)
             )
 
+    # --------------------------------------------------------
+    # Endpoint-hint parameters may not already exist in URL.
+    # Add the parameter when it is missing.
+    # --------------------------------------------------------
+
+    if not parameter_found:
+
+        updated.append(
+            (parameter, value)
+        )
+
     new_query = urlencode(
         updated,
-        doseq=True
+        doseq=True,
     )
 
     return urlunparse(
@@ -61,6 +90,10 @@ def _replace_parameter(url, parameter, value):
     )
 
 
+# ============================================================
+# Open Redirect Detection
+# ============================================================
+
 def check_open_redirect(url, parameter):
     """
     Detect potential open redirects using a controlled
@@ -70,13 +103,16 @@ def check_open_redirect(url, parameter):
     redirects to the supplied external destination.
     """
 
+    if not parameter:
+        return None
+
     if parameter.lower() not in REDIRECT_PARAMETERS:
         return None
 
     test_url = _replace_parameter(
         url,
         parameter,
-        TEST_DESTINATION
+        TEST_DESTINATION,
     )
 
     try:
@@ -88,11 +124,12 @@ def check_open_redirect(url, parameter):
         )
 
     except requests.RequestException:
+
         return None
 
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
     # Only redirect responses are interesting
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
 
     if response.status_code not in (
         301,
@@ -105,27 +142,27 @@ def check_open_redirect(url, parameter):
 
     location = response.headers.get(
         "Location",
-        ""
+        "",
     ).strip()
 
     if not location:
         return None
 
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
     # Parse redirect destination
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
 
     location_parsed = urlparse(
-        location
+        location,
     )
 
     test_parsed = urlparse(
-        TEST_DESTINATION
+        TEST_DESTINATION,
     )
 
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
     # Confirm external destination
-    # ---------------------------------------------------------
+    # --------------------------------------------------------
 
     if (
         location_parsed.scheme.lower()
@@ -138,6 +175,10 @@ def check_open_redirect(url, parameter):
         != test_parsed.netloc.lower()
     ):
         return None
+
+    # --------------------------------------------------------
+    # Confirmed finding
+    # --------------------------------------------------------
 
     return {
         "type": "Open Redirect",
