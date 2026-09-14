@@ -23,7 +23,6 @@ from scanner.risk import (
     calculate_risk,
     calculate_overall_risk,
 )
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # ============================================================
 # Scan Modesm
@@ -87,6 +86,39 @@ def get_scan_config(mode):
 
 
 # ============================================================
+# Scan Configuration
+# ============================================================
+
+ALLOWED_SCAN_CONFIG = {
+    "max_pages": (10, 20, 50),
+    "timeout": (5, 10, 15),
+    "max_depth": (1, 2, 3),
+}
+
+DEFAULT_SCAN_CONFIG = {
+    "max_pages": 20,
+    "timeout": 10,
+    "max_depth": 3,
+}
+
+def normalize_scan_config(scan_config=None):
+    """Normalize user scan settings to bounded, safe presets."""
+    incoming = scan_config if isinstance(scan_config, dict) else {}
+    normalized = dict(DEFAULT_SCAN_CONFIG)
+
+    for key, allowed in ALLOWED_SCAN_CONFIG.items():
+        try:
+            value = int(incoming.get(key, DEFAULT_SCAN_CONFIG[key]))
+        except (TypeError, ValueError):
+            value = DEFAULT_SCAN_CONFIG[key]
+        if value not in allowed:
+            value = DEFAULT_SCAN_CONFIG[key]
+        normalized[key] = value
+
+    return normalized
+
+
+# ============================================================
 # Finding Helper
 # ============================================================
 
@@ -121,10 +153,14 @@ def _finding(
 # Single Target Scan
 # ============================================================
 
-def scan_target(url, mode="standard"):
+def scan_target(url, mode="standard", timeout=10):
 
     mode = normalize_mode(mode)
     config = get_scan_config(mode)
+    try:
+        timeout = max(1, int(timeout))
+    except (TypeError, ValueError):
+        timeout = DEFAULT_SCAN_CONFIG["timeout"]
 
     result = {
         "target": url,
@@ -165,7 +201,7 @@ def scan_target(url, mode="standard"):
 
         response = requests.get(
             url,
-            timeout=10,
+            timeout=timeout,
             allow_redirects=True,
         )
 
@@ -375,6 +411,186 @@ def _deduplicate_findings(findings):
     return list(unique.values())
 
 
+
+# ============================================================
+# Finding Intelligence Metadata
+# ============================================================
+
+FINDING_METADATA = {
+    "SQL Injection": ("CWE-89", "A03:2021 – Injection",
+                      "An attacker may influence database queries, potentially exposing, modifying, or deleting application data."),
+    "Reflected XSS": ("CWE-79", "A03:2021 – Injection",
+                      "Untrusted input reflected into a browser context may enable script execution or manipulation of a victim's session."),
+    "Stored XSS": ("CWE-79", "A03:2021 – Injection",
+                   "Persisted untrusted content may execute in browsers of users who view the affected page."),
+    "DOM XSS": ("CWE-79", "A03:2021 – Injection",
+                "Client-side processing of untrusted data may enable script execution in a victim's browser."),
+    "SSRF": ("CWE-918", "A10:2021 – Server-Side Request Forgery",
+             "A server-side URL fetch feature may be abused to reach resources that should not be accessible from the application."),
+    "Open Redirect": ("CWE-601", "A01:2021 – Broken Access Control",
+                      "Users may be redirected to attacker-controlled destinations, supporting phishing and trust abuse."),
+    "XXE": ("CWE-611", "A05:2021 – Security Misconfiguration",
+            "Unsafe XML entity processing can become dangerous when external entity resolution or unsafe DTDs are permitted."),
+    "CSRF Protection": ("CWE-352", "A01:2021 – Broken Access Control",
+                        "A missing anti-CSRF control may allow a victim's browser to submit unintended state-changing requests."),
+    "Missing Security Header": ("CWE-693", "A05:2021 – Security Misconfiguration",
+                                "Missing browser security controls can increase exposure to client-side attacks."),
+    "Cookie Security": ("CWE-614 / CWE-1004", "A05:2021 – Security Misconfiguration",
+                        "Weak cookie attributes can increase the risk of session exposure or unintended cross-site access."),
+    "Information Disclosure": ("CWE-200", "A05:2021 – Security Misconfiguration",
+                               "Exposed implementation details can provide useful information for reconnaissance."),
+    "Transport Security": ("CWE-319", "A02:2021 – Cryptographic Failures",
+                           "Unencrypted HTTP can expose transmitted data to interception or modification."),
+    "HTTP Method Security": ("CWE-749", "A05:2021 – Security Misconfiguration",
+                             "Unnecessary HTTP methods can expand the application's attack surface."),
+    "CORS": ("CWE-942", "A05:2021 – Security Misconfiguration",
+             "An overly permissive cross-origin policy can expose resources to unintended origins."),
+    "Sensitive File Exposure": ("CWE-538", "A05:2021 – Security Misconfiguration",
+                                "Accessible sensitive files can disclose configuration, source, credentials, or operational information."),
+    "Endpoint Exposure": ("CWE-538", "A05:2021 – Security Misconfiguration",
+                          "Exposed administrative, backup, or operational endpoints may increase attack surface."),
+    "Authentication Security": ("CWE-287", "A07:2021 – Identification and Authentication Failures",
+                                "Weak authentication controls can increase the likelihood of unauthorized account access."),
+}
+
+
+def _apply_finding_metadata(finding):
+    """
+    Attach standardized CWE/OWASP metadata.
+
+    Detector implementations use slightly different finding types/names,
+    so metadata is matched using both the normalized type and finding name.
+    """
+
+    finding_type = str(
+        finding.get("type") or ""
+    ).strip()
+
+    finding_name = str(
+        finding.get("name") or ""
+    ).strip()
+
+    # Exact match first.
+    metadata = FINDING_METADATA.get(finding_type)
+
+    if metadata is None:
+        combined = (
+            f"{finding_type} {finding_name}"
+        ).lower()
+
+        # Vulnerabilities
+        if "sql injection" in combined:
+            metadata = FINDING_METADATA["SQL Injection"]
+
+        elif (
+            "reflected xss" in combined
+            or "potential reflected xss" in combined
+        ):
+            metadata = FINDING_METADATA["Reflected XSS"]
+
+        elif "stored xss" in combined:
+            metadata = FINDING_METADATA["Stored XSS"]
+
+        elif "dom xss" in combined:
+            metadata = FINDING_METADATA["DOM XSS"]
+
+        elif "ssrf" in combined:
+            metadata = FINDING_METADATA["SSRF"]
+
+        elif "open redirect" in combined:
+            metadata = FINDING_METADATA["Open Redirect"]
+
+        elif (
+            "xxe" in combined
+            or "xml entity" in combined
+            or "xml parser" in combined
+        ):
+            metadata = FINDING_METADATA["XXE"]
+
+        elif "csrf" in combined:
+            metadata = FINDING_METADATA["CSRF Protection"]
+
+        # Security controls / misconfigurations
+        elif (
+            "content-security-policy" in combined
+            or "security header" in combined
+            or "missing security header" in combined
+        ):
+            metadata = FINDING_METADATA["Missing Security Header"]
+
+        elif "cookie" in combined:
+            metadata = FINDING_METADATA["Cookie Security"]
+
+        elif (
+            "information disclosure" in combined
+            or "server information" in combined
+        ):
+            metadata = FINDING_METADATA["Information Disclosure"]
+
+        elif (
+            "unencrypted http" in combined
+            or "transport security" in combined
+            or "http transport" in combined
+        ):
+            metadata = FINDING_METADATA["Transport Security"]
+
+        elif (
+            "risky http method" in combined
+            or "http method" in combined
+            or "methods enabled" in combined
+        ):
+            metadata = FINDING_METADATA["HTTP Method Security"]
+
+        elif "cors" in combined:
+            metadata = FINDING_METADATA["CORS"]
+
+        elif "sensitive file" in combined:
+            metadata = FINDING_METADATA["Sensitive File Exposure"]
+
+        elif "endpoint exposure" in combined:
+            metadata = FINDING_METADATA["Endpoint Exposure"]
+
+        elif "authentication" in combined:
+            metadata = FINDING_METADATA["Authentication Security"]
+
+    if metadata:
+        cwe, owasp, impact = metadata
+    else:
+        cwe = None
+        owasp = None
+        impact = (
+            "Review the affected behavior and assess its "
+            "security impact."
+        )
+
+    finding["cwe"] = (
+        finding.get("cwe")
+        or cwe
+    )
+
+    finding["owasp"] = (
+        finding.get("owasp")
+        or owasp
+    )
+
+    finding["impact"] = (
+        finding.get("impact")
+        or impact
+    )
+
+    finding["verification_status"] = (
+        "Reproduced"
+        if finding.get("verification") == "reproduced"
+        else (
+            "Actively Tested"
+            if finding.get("test_mode") == "active"
+            else "Observed"
+        )
+    )
+
+    return finding
+
+
 def _normalize_finding(finding, target_url=None):
     """
     Normalize a scanner finding into a consistent structure.
@@ -558,6 +774,13 @@ def _normalize_finding(finding, target_url=None):
     else:
         normalized["test_mode"] = "passive"
 
+    # --------------------------------------------------------
+    # Finding intelligence metadata
+    # --------------------------------------------------------
+    # Apply this AFTER normalization/test-mode assignment so every
+    # finding gets CWE/OWASP/impact data before it is persisted.
+    normalized = _apply_finding_metadata(normalized)
+
     return normalized
 
 
@@ -630,12 +853,12 @@ def _replace_get_parameter(url, parameter, value):
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(rebuilt), parts.fragment))
 
 
-def _safe_request_profile(url):
+def _safe_request_profile(url, timeout=5):
     """Collect lightweight response characteristics for differential analysis."""
     try:
         response = requests.get(
             url,
-            timeout=5,
+            timeout=max(1, int(timeout)),
             allow_redirects=False,
             headers={"User-Agent": "WebGuard-ActiveScanner/1.0"},
         )
@@ -660,7 +883,7 @@ def _profiles_differ(profiles):
     }) > 1
 
 
-def _active_probe_parameter(parameter_info, detector_type):
+def _active_probe_parameter(parameter_info, detector_type, timeout=5):
     """Run controlled GET probes and return differential evidence metadata."""
     if not isinstance(parameter_info, dict):
         return None
@@ -685,7 +908,7 @@ def _active_probe_parameter(parameter_info, detector_type):
     profiles = []
     for value in values:
         probe_url = _replace_get_parameter(base_url, parameter, value)
-        profile = _safe_request_profile(probe_url)
+        profile = _safe_request_profile(probe_url, timeout=timeout)
         if profile:
             profile["probe"] = value
             profiles.append(profile)
@@ -700,7 +923,7 @@ def _active_probe_parameter(parameter_info, detector_type):
     }
 
 
-def _active_deep_verify(parameter_info):
+def _active_deep_verify(parameter_info, timeout=5):
     """Perform multiple controlled probes and strengthen an existing finding.
 
     Active mode deliberately uses local/safe markers and example domains. The
@@ -731,7 +954,7 @@ def _active_deep_verify(parameter_info):
             if not initial:
                 continue
 
-            probe_data = _active_probe_parameter(parameter_info, finding_type)
+            probe_data = _active_probe_parameter(parameter_info, finding_type, timeout=timeout)
             if not probe_data:
                 continue
 
@@ -799,642 +1022,297 @@ def _active_verify_xxe(url):
 # Multiple Target Scan
 # ============================================================
 
-
-# ============================================================
-# Phase 2B - Concurrent Target / Parameter Scanning
-# ============================================================
-
-# Conservative, mode-aware concurrency. These limits apply to WebGuard's
-# own worker pool; individual detectors retain their existing request logic.
-SCAN_WORKERS = {
-    "passive": 6,
-    "standard": 4,
-    "active": 2,
-}
-
-PARAMETER_WORKERS = {
-    "passive": 1,
-    "standard": 6,
-    "active": 3,
-}
-
-
-def _run_detector(detector, *args):
-    """Run one detector without allowing one failure to abort a scan."""
-    try:
-        return detector(*args)
-    except Exception:
-        return None
-
-
-def _base_endpoint(url):
-    return (
-        urlparse(url)
-        ._replace(query="", fragment="")
-        .geturl()
-        .rstrip("/")
-    )
-
-
-def _parameter_belongs_to_target(parameter_info, target_url):
-    if not isinstance(parameter_info, dict):
-        return False
-
-    parameter_url = parameter_info.get("url")
-    if not parameter_url:
-        return False
-
-    return _base_endpoint(parameter_url) == _base_endpoint(target_url)
-
-
-def _discover_parameters_for_url(url):
-    try:
-        return discover_parameters(url) or []
-    except Exception:
-        return []
-
-
-def _test_parameter(parameter_info):
-    """
-    Run the four existing parameter detectors concurrently.
-
-    The detectors themselves are unchanged. This function only coordinates
-    them and returns their findings together with the parameter metadata.
-    """
-    if not isinstance(parameter_info, dict):
-        return {
-            "parameter": parameter_info,
-            "findings": [],
-        }
-
-    parameter_url = parameter_info.get("url")
-    parameter = parameter_info.get("parameter")
-    method = str(
-        parameter_info.get("method", "")
-    ).upper()
-
-    if not parameter_url or not parameter:
-        return {
-            "parameter": parameter_info,
-            "findings": [],
-        }
-
-    # WebGuard currently performs GET parameter testing only.
-    if method != "GET":
-        return {
-            "parameter": parameter_info,
-            "findings": [],
-        }
-
-    detectors = (
-        ("Reflected XSS", check_reflected_xss),
-        ("SQL Injection", check_sql_injection),
-        ("Open Redirect", check_open_redirect),
-        ("SSRF", check_ssrf),
-    )
-
-    findings = []
-
-    with ThreadPoolExecutor(
-        max_workers=4
-    ) as executor:
-        futures = {
-            executor.submit(
-                _run_detector,
-                detector,
-                parameter_url,
-                parameter,
-            ): finding_type
-            for finding_type, detector in detectors
-        }
-
-        for future in as_completed(futures):
-            try:
-                finding = future.result()
-            except Exception:
-                finding = None
-
-            if finding:
-                finding["url"] = parameter_url
-                findings.append(finding)
-
-    # Stable detector order for UI/report consistency.
-    order = {
-        "Reflected XSS": 1,
-        "SQL Injection": 2,
-        "Open Redirect": 3,
-        "SSRF": 4,
-    }
-
-    findings.sort(
-        key=lambda item: order.get(
-            item.get("type"),
-            99,
-        )
-    )
-
-    return {
-        "parameter": parameter_info,
-        "findings": findings,
-    }
-
-
-def _active_verify_selected(
-    parameter_info,
-    finding_types,
-):
-    """
-    Active verification optimized to verify only detector types that already
-    produced a finding during the normal parameter pass.
-
-    This preserves the existing safety rule in _active_deep_verify():
-    differential probing supplies evidence but does not create findings.
-    """
-    if not isinstance(parameter_info, dict):
-        return []
-
-    parameter_url = parameter_info.get("url")
-    parameter = parameter_info.get("parameter")
-    method = str(
-        parameter_info.get("method", "")
-    ).upper()
-
-    if (
-        not parameter_url
-        or not parameter
-        or method != "GET"
-    ):
-        return []
-
-    detector_map = {
-        "Reflected XSS": check_reflected_xss,
-        "SQL Injection": check_sql_injection,
-        "Open Redirect": check_open_redirect,
-        "SSRF": check_ssrf,
-    }
-
-    verified = []
-
-    for finding_type in (
-        "Reflected XSS",
-        "SQL Injection",
-        "Open Redirect",
-        "SSRF",
-    ):
-        if finding_type not in finding_types:
-            continue
-
-        detector = detector_map[finding_type]
-
-        try:
-            initial = detector(
-                parameter_url,
-                parameter,
-            )
-
-            if not initial:
-                continue
-
-            probe_data = _active_probe_parameter(
-                parameter_info,
-                finding_type,
-            )
-
-            if not probe_data:
-                continue
-
-            confirmation = detector(
-                parameter_url,
-                parameter,
-            )
-
-            if not confirmation:
-                continue
-
-            finding = dict(initial)
-            finding["confidence"] = "High"
-            finding["test_mode"] = "active"
-            finding["verification"] = "reproduced"
-            finding["url"] = parameter_url
-            finding["parameter"] = parameter
-            finding["active_probe_count"] = (
-                probe_data["probe_count"]
-            )
-            finding["differential_change"] = (
-                probe_data["differential_change"]
-            )
-            finding["detection"] = (
-                f"Active multi-probe verification reproduced "
-                f"{finding_type} using "
-                f"{probe_data['probe_count']} controlled probes."
-            )
-            finding["evidence"] = (
-                f"The detector reproduced the finding and Active mode "
-                f"collected {probe_data['probe_count']} response profiles; "
-                f"differential response change="
-                f"{probe_data['differential_change']}."
-            )
-
-            verified.append(finding)
-
-        except Exception:
-            continue
-
-    return verified
-
-
-def _active_verify_parameter_job(job):
-    parameter_info, finding_types = job
-    return _active_verify_selected(
-        parameter_info,
-        finding_types,
-    )
-
-
-def _scan_base_target(url, mode):
-    return scan_target(
-        url,
-        mode=mode,
-    )
-
-
-def _stable_parameter_key(parameter_info):
-    if not isinstance(parameter_info, dict):
-        return None
-
-    return (
-        str(parameter_info.get("url", "")).strip().lower(),
-        str(parameter_info.get("parameter", "")).strip().lower(),
-        str(parameter_info.get("method", "")).strip().upper(),
-    )
-
-
 def scan_multiple_targets(
     urls,
     mode="standard",
+    scan_config=None,
 ):
-    """
-    Concurrent multi-target scanner.
-
-    Phase 2B optimizations:
-    - Base target scans run concurrently.
-    - Parameter discovery runs concurrently.
-    - Parameter detectors run concurrently.
-    - Active verification only revisits parameter types that already
-      produced findings.
-    - Concurrency remains bounded and mode-aware.
-    - Output order remains deterministic.
-    """
 
     mode = normalize_mode(mode)
     config = get_scan_config(mode)
-
-    if not urls:
-        return []
-
-    # ------------------------------------------------------------------
-    # Normalize and deduplicate target URLs.
-    # ------------------------------------------------------------------
-
-    unique_urls = []
-    seen_urls = set()
-
-    for value in urls:
-        if not value:
-            continue
-
-        value = str(value).strip()
-        key = value.lower()
-
-        if key in seen_urls:
-            continue
-
-        seen_urls.add(key)
-        unique_urls.append(value)
-
-    if not unique_urls:
-        return []
-
-    # ------------------------------------------------------------------
-    # 1. Parameter discovery in parallel.
-    # ------------------------------------------------------------------
-
-    parameters_by_target = {
-        url: []
-        for url in unique_urls
-    }
-
-    if config["parameter_testing"]:
-        discovery_workers = min(
-            SCAN_WORKERS[mode],
-            len(unique_urls),
-        )
-
-        with ThreadPoolExecutor(
-            max_workers=max(
-                1,
-                discovery_workers,
-            )
-        ) as executor:
-            futures = {
-                executor.submit(
-                    _discover_parameters_for_url,
-                    url,
-                ): url
-                for url in unique_urls
-            }
-
-            for future in as_completed(futures):
-                url = futures[future]
-
-                try:
-                    discovered = future.result()
-                except Exception:
-                    discovered = []
-
-                unique_parameters = []
-                parameter_seen = set()
-
-                for parameter_info in discovered:
-                    key = _stable_parameter_key(
-                        parameter_info
-                    )
-
-                    if not key or key in parameter_seen:
-                        continue
-
-                    parameter_seen.add(key)
-                    unique_parameters.append(
-                        parameter_info
-                    )
-
-                parameters_by_target[url] = (
-                    unique_parameters
-                )
-
-    # ------------------------------------------------------------------
-    # 2. Base target scans in parallel.
-    # ------------------------------------------------------------------
-
-    target_workers = min(
-        SCAN_WORKERS[mode],
-        len(unique_urls),
-    )
-
-    base_results = {}
-
-    with ThreadPoolExecutor(
-        max_workers=max(
-            1,
-            target_workers,
-        )
-    ) as executor:
-        futures = {
-            executor.submit(
-                _scan_base_target,
-                url,
-                mode,
-            ): url
-            for url in unique_urls
-        }
-
-        for future in as_completed(futures):
-            url = futures[future]
-
-            try:
-                result = future.result()
-            except Exception as exc:
-                result = {
-                    "target": url,
-                    "mode": mode,
-                    "status": "Unknown",
-                    "status_code": None,
-                    "response_time": None,
-                    "server": None,
-                    "https": urlparse(url).scheme == "https",
-                    "findings": [],
-                    "error": str(exc),
-                }
-
-            base_results[url] = result
-
-    # ------------------------------------------------------------------
-    # 3. Parameter testing in parallel.
-    # ------------------------------------------------------------------
-
-    parameter_jobs = []
-
-    if config["parameter_testing"]:
-        for url in unique_urls:
-            for parameter_info in parameters_by_target.get(
-                url,
-                [],
-            ):
-                if not _parameter_belongs_to_target(
-                    parameter_info,
-                    url,
-                ):
-                    continue
-
-                parameter_jobs.append(
-                    (
-                        url,
-                        parameter_info,
-                    )
-                )
-
-    parameter_results_by_target = {
-        url: []
-        for url in unique_urls
-    }
-
-    if parameter_jobs:
-        parameter_workers = min(
-            PARAMETER_WORKERS[mode],
-            len(parameter_jobs),
-        )
-
-        with ThreadPoolExecutor(
-            max_workers=max(
-                1,
-                parameter_workers,
-            )
-        ) as executor:
-            futures = {
-                executor.submit(
-                    _test_parameter,
-                    parameter_info,
-                ): url
-                for url, parameter_info in parameter_jobs
-            }
-
-            for future in as_completed(futures):
-                url = futures[future]
-
-                try:
-                    tested = future.result()
-                except Exception:
-                    continue
-
-                parameter_results_by_target[
-                    url
-                ].append(tested)
-
-    # ------------------------------------------------------------------
-    # 4. Build results in the original URL order.
-    # ------------------------------------------------------------------
+    scan_config = normalize_scan_config(scan_config)
 
     all_results = []
 
-    for url in unique_urls:
-        result = base_results.get(url)
+    if not urls:
+        return all_results
 
-        if not isinstance(result, dict):
-            result = {
-                "target": url,
-                "mode": mode,
-                "status": "Unknown",
-                "status_code": None,
-                "response_time": None,
-                "server": None,
-                "https": urlparse(url).scheme == "https",
-                "findings": [],
-                "error": "No scan result",
-            }
+    # ========================================================
+    # Discover parameters from ALL supplied pages
+    # ========================================================
+
+    parameters = []
+
+    if config["parameter_testing"]:
+
+        for page_url in urls:
+
+            try:
+
+                page_parameters = (
+                    discover_parameters(
+                        page_url
+                    )
+                    or []
+                )
+
+            except Exception:
+
+                page_parameters = []
+
+            for parameter_info in page_parameters:
+
+                if (
+                    parameter_info
+                    not in parameters
+                ):
+
+                    parameters.append(
+                        parameter_info
+                    )
+
+    # ========================================================
+    # Scan each URL
+    # ========================================================
+
+    for url in urls:
+
+        result = scan_target(
+            url,
+            mode=mode,
+            timeout=scan_config["timeout"],
+        )
+
+        # ----------------------------------------------------
+        # If target could not be scanned
+        # ----------------------------------------------------
 
         if result.get("error"):
-            result["parameters"] = []
-            result["findings"] = _normalize_findings(
-                result.get("findings", []),
-                target_url=url,
-            )
-            result["risk"] = calculate_risk(
-                result["findings"]
-            )
             all_results.append(result)
             continue
 
         result["parameters"] = []
 
-        # --------------------------------------------------------------
-        # Attach discovered parameters belonging to this target.
-        # --------------------------------------------------------------
+        # ====================================================
+        # Parameter-based testing
+        # ====================================================
 
-        for parameter_info in parameters_by_target.get(
-            url,
-            [],
-        ):
-            if _parameter_belongs_to_target(
-                parameter_info,
-                url,
-            ):
+        if config["parameter_testing"]:
+
+            for parameter_info in parameters:
+
+                if not isinstance(
+                    parameter_info,
+                    dict,
+                ):
+                    continue
+
+                parameter_url = (
+                    parameter_info.get("url")
+                )
+
+                if not parameter_url:
+                    continue
+
+                # --------------------------------------------
+                # Normalize parameter endpoint
+                # --------------------------------------------
+
+                parameter_base_url = urlparse(
+                    parameter_url
+                )._replace(
+                    query="",
+                    fragment="",
+                ).geturl().rstrip("/")
+
+                # --------------------------------------------
+                # Normalize target endpoint
+                # --------------------------------------------
+
+                target_base_url = urlparse(
+                    url
+                )._replace(
+                    query="",
+                    fragment="",
+                ).geturl().rstrip("/")
+
+                # --------------------------------------------
+                # Make sure parameter belongs to endpoint
+                # --------------------------------------------
+
+                if (
+                    parameter_base_url
+                    != target_base_url
+                ):
+                    continue
+
                 result["parameters"].append(
                     parameter_info
                 )
 
-        # --------------------------------------------------------------
-        # Add parameter detector findings.
-        # --------------------------------------------------------------
+                # --------------------------------------------
+                # Only test GET parameters
+                # --------------------------------------------
 
-        active_jobs = []
+                if (
+                    str(
+                        parameter_info.get(
+                            "method",
+                            ""
+                        )
+                    ).upper()
+                    != "GET"
+                ):
+                    continue
 
-        for tested in parameter_results_by_target.get(
-            url,
-            [],
-        ):
-            parameter_info = tested.get(
-                "parameter"
-            )
-
-            findings = tested.get(
-                "findings",
-                [],
-            ) or []
-
-            for finding in findings:
-                result.setdefault(
-                    "findings",
-                    [],
-                ).append(finding)
-
-            if config["deep_testing"] and findings:
-                finding_types = {
-                    finding.get("type")
-                    for finding in findings
-                    if finding.get("type")
-                }
-
-                active_jobs.append(
-                    (
-                        parameter_info,
-                        finding_types,
+                parameter = (
+                    parameter_info.get(
+                        "parameter"
                     )
                 )
 
-        # --------------------------------------------------------------
-        # Active differential verification.
-        # --------------------------------------------------------------
+                if not parameter:
+                    continue
 
-        if active_jobs:
-            active_workers = min(
-                PARAMETER_WORKERS["active"],
-                len(active_jobs),
-            )
+                # ============================================
+                # Reflected XSS Detection
+                # ============================================
 
-            with ThreadPoolExecutor(
-                max_workers=max(
-                    1,
-                    active_workers,
-                )
-            ) as executor:
-                futures = [
-                    executor.submit(
-                        _active_verify_parameter_job,
-                        job,
+                try:
+
+                    xss_finding = (
+                        check_reflected_xss(
+                            parameter_url,
+                            parameter,
+                        )
                     )
-                    for job in active_jobs
-                ]
 
-                for future in as_completed(futures):
-                    try:
-                        verified = future.result()
-                    except Exception:
-                        verified = []
+                except Exception:
 
-                    for finding in verified:
+                    xss_finding = None
+
+                if xss_finding:
+
+                    xss_finding["url"] = (
+                        parameter_url
+                    )
+
+                    result.setdefault(
+                        "findings",
+                        [],
+                    ).append(
+                        xss_finding
+                    )
+
+                # ============================================
+                # SQL Injection Detection
+                # ============================================
+
+                try:
+
+                    sqli_finding = (
+                        check_sql_injection(
+                            parameter_url,
+                            parameter,
+                        )
+                    )
+
+                except Exception:
+
+                    sqli_finding = None
+
+                if sqli_finding:
+
+                    sqli_finding["url"] = (
+                        parameter_url
+                    )
+
+                    result.setdefault(
+                        "findings",
+                        [],
+                    ).append(
+                        sqli_finding
+                    )
+
+                # ============================================
+                # Open Redirect Detection
+                # ============================================
+
+                try:
+
+                    redirect_finding = (
+                        check_open_redirect(
+                            parameter_url,
+                            parameter,
+                        )
+                    )
+
+                except Exception:
+
+                    redirect_finding = None
+
+                if redirect_finding:
+
+                    redirect_finding["url"] = (
+                        parameter_url
+                    )
+
+                    result.setdefault(
+                        "findings",
+                        [],
+                    ).append(
+                        redirect_finding
+                    )
+                # ============================================
+                # SSRF Detection
+                # ============================================
+
+                try:
+
+                    ssrf_finding = check_ssrf(
+                        parameter_url,
+                        parameter,
+                    )
+
+                except Exception:
+
+                    ssrf_finding = None
+
+                if ssrf_finding:
+
+                    ssrf_finding["url"] = parameter_url
+
+                    result.setdefault(
+                        "findings",
+                        [],
+                    ).append(
+                        ssrf_finding
+                    )
+
+            # ====================================================
+            # Active-only deep verification
+            # ====================================================
+            if config["deep_testing"]:
+                for parameter_info in result.get("parameters", []):
+                    for deep_finding in _active_deep_verify(parameter_info, timeout=scan_config["timeout"]):
                         result.setdefault(
                             "findings",
                             [],
-                        ).append(finding)
-
-        # --------------------------------------------------------------
-        # Active XXE verification.
-        #
-        # Keep the existing detector behavior, but run it once per target
-        # in the normal target worker phase rather than multiplying it by
-        # parameter count.
-        # --------------------------------------------------------------
-
+                        ).append(deep_finding)
+        # ====================================================
+        # Active-only XXE verification
+        # ====================================================
         if config["deep_testing"]:
             xxe_verified = _active_verify_xxe(url)
-
             if xxe_verified:
-                result.setdefault(
-                    "findings",
-                    [],
-                ).append(
-                    xxe_verified
-                )
+                result.setdefault("findings", []).append(xxe_verified)
 
-        # --------------------------------------------------------------
-        # Final per-target dedup / normalization / risk.
-        # --------------------------------------------------------------
+        # ====================================================
+        # Store completed result
+        # ====================================================
 
         result["findings"] = _deduplicate_findings(
-            result.get(
-                "findings",
-                [],
-            )
+            result.get("findings", [])
         )
 
         result["findings"] = _normalize_findings(
@@ -1446,21 +1324,21 @@ def scan_multiple_targets(
             result["findings"]
         )
 
-        all_results.append(result)
-
-    # ------------------------------------------------------------------
-    # Overall risk.
-    # ------------------------------------------------------------------
+        all_results.append(
+            result
+        )
 
     overall_risk = calculate_overall_risk(
-        all_results
-    )
+    all_results
+)
 
     for result in all_results:
+
         if isinstance(result, dict):
+
             result.setdefault(
                 "scan_summary",
-                overall_risk,
-            )
+            overall_risk
+        )
 
     return all_results
