@@ -81,6 +81,11 @@ def init_db():
 
             affected_endpoints_json TEXT DEFAULT '[]',
 
+            cwe TEXT,
+            owasp TEXT,
+            impact TEXT,
+            verification_status TEXT,
+
             FOREIGN KEY (scan_id)
                 REFERENCES scans(id)
         )
@@ -153,6 +158,35 @@ def init_db():
         "TEXT DEFAULT '[]'"
     )
 
+    # Finding intelligence metadata
+    _ensure_column(
+        cursor,
+        "findings",
+        "cwe",
+        "TEXT"
+    )
+
+    _ensure_column(
+        cursor,
+        "findings",
+        "owasp",
+        "TEXT"
+    )
+
+    _ensure_column(
+        cursor,
+        "findings",
+        "impact",
+        "TEXT"
+    )
+
+    _ensure_column(
+        cursor,
+        "findings",
+        "verification_status",
+        "TEXT"
+    )
+
     conn.commit()
     conn.close()
 
@@ -202,7 +236,7 @@ def save_scan(
         high_risk_count,
         security_score,
         risk_level,
-        json.dumps(endpoints)
+        json.dumps(endpoints),
     ))
 
     scan_id = cursor.lastrowid
@@ -278,11 +312,16 @@ def save_scan(
                 detection,
                 evidence,
                 test_mode,
-                affected_endpoints_json
+                affected_endpoints_json,
+                cwe,
+                owasp,
+                impact,
+                verification_status
             )
             VALUES (
                 ?, ?, ?, ?, ?, ?,
                 ?, ?, ?, ?, ?, ?,
+                ?, ?, ?, ?,
                 ?, ?, ?, ?
             )
         """, (
@@ -318,7 +357,12 @@ def save_scan(
 
             json.dumps(
                 affected_endpoints
-            )
+            ),
+
+            finding.get("cwe"),
+            finding.get("owasp"),
+            finding.get("impact"),
+            finding.get("verification_status")
         ))
 
     conn.commit()
@@ -463,3 +507,4 @@ def get_scan(scan_id):
     result["findings"] = findings
 
     return result
+
