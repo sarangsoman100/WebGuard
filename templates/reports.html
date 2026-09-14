@@ -1,32 +1,750 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebGuard Security Report</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebGuard | Security Report</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+/* =========================================================
+   WEBGUARD REPORT — SCREEN
+   ========================================================= */
+.report { display:none; }
+.report.visible { display:block; }
 
+.report-toolbar {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin:18px 0 22px;
+}
+
+.report-toolbar select {
+    min-width:320px;
+    flex:1;
+}
+
+.report-cover,
+.report-section {
+    border:1px solid #243847;
+    border-radius:10px;
+    background:#0b141c;
+}
+
+.report-cover {
+    padding:28px;
+    margin-bottom:16px;
+}
+
+.report-cover-top {
+    display:flex;
+    justify-content:space-between;
+    gap:24px;
+    align-items:flex-start;
+}
+
+.eyebrow {
+    font-size:10px;
+    text-transform:uppercase;
+    letter-spacing:1.5px;
+    color:#6f8799;
+    font-weight:800;
+    margin-bottom:10px;
+}
+
+.report-target {
+    color:#e8f0f6;
+    font-size:22px;
+    font-weight:800;
+    overflow-wrap:anywhere;
+}
+
+.report-meta {
+    margin-top:7px;
+    color:#7890a0;
+    font-size:11px;
+}
+
+.report-risk {
+    padding:10px 16px;
+    border-radius:999px;
+    font-size:11px;
+    font-weight:900;
+    text-transform:uppercase;
+    white-space:nowrap;
+}
+
+.report-risk.high { background:#321d27; color:#ff6f91; }
+.report-risk.medium { background:#332c1d; color:#e8b74e; }
+.report-risk.low { background:#202d20; color:#8ecf8e; }
+.report-risk.secure { background:#1d302b; color:#79d6bd; }
+
+.report-metrics {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:12px;
+    margin-bottom:16px;
+}
+
+.report-metric {
+    border:1px solid #243847;
+    border-radius:9px;
+    background:#0d1821;
+    padding:15px;
+}
+
+.report-metric label {
+    display:block;
+    color:#6f8799;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.8px;
+    font-weight:800;
+    margin-bottom:7px;
+}
+
+.report-metric strong {
+    color:#dce8f0;
+    font-size:22px;
+}
+
+.report-grid {
+    display:grid;
+    grid-template-columns:1.1fr .9fr;
+    gap:16px;
+    margin-bottom:16px;
+}
+
+.report-section {
+    padding:18px;
+    margin-bottom:16px;
+}
+
+.report-section h3 {
+    margin:0 0 14px;
+    color:#e0ebf2;
+    font-size:14px;
+}
+
+.severity-list {
+    display:grid;
+    gap:9px;
+}
+
+.severity-row {
+    display:grid;
+    grid-template-columns:80px 1fr 35px;
+    gap:10px;
+    align-items:center;
+    font-size:10px;
+}
+
+.severity-bar {
+    height:7px;
+    border-radius:10px;
+    background:#182630;
+    overflow:hidden;
+}
+
+.severity-fill {
+    height:100%;
+    border-radius:10px;
+    background:#7890a2;
+}
+
+.severity-count {
+    text-align:right;
+    color:#b9c9d4;
+    font-weight:700;
+}
+
+.classification {
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:10px;
+}
+
+.classification-item {
+    border:1px solid #243847;
+    border-radius:8px;
+    padding:12px;
+    background:#0e1922;
+}
+
+.classification-item span {
+    display:block;
+    color:#6f8799;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.7px;
+    margin-bottom:6px;
+}
+
+.classification-item strong {
+    color:#d8e4eb;
+    font-size:15px;
+}
+
+.endpoint-list {
+    display:grid;
+    gap:7px;
+    max-height:360px;
+    overflow:auto;
+}
+
+.endpoint-item {
+    padding:9px 11px;
+    border:1px solid #1f3341;
+    border-radius:7px;
+    background:#0d1821;
+    font-size:10px;
+    color:#9db1bf;
+    overflow-wrap:anywhere;
+}
+
+.endpoint-item .status {
+    float:right;
+    color:#8bb9a8;
+    font-weight:700;
+    margin-left:10px;
+}
+
+.finding {
+    border:1px solid #243847;
+    border-radius:9px;
+    background:#0d1821;
+    padding:18px;
+    margin-bottom:12px;
+    break-inside:avoid;
+}
+
+.finding-head {
+    display:flex;
+    justify-content:space-between;
+    gap:14px;
+    align-items:flex-start;
+    margin-bottom:9px;
+}
+
+.finding-title {
+    color:#e4edf3;
+    font-size:14px;
+    font-weight:800;
+    margin:0 0 4px;
+}
+
+.finding-type {
+    color:#6f8799;
+    font-size:9px;
+    text-transform:uppercase;
+    letter-spacing:.6px;
+}
+
+.finding-badge {
+    padding:6px 9px;
+    border-radius:999px;
+    font-size:9px;
+    font-weight:900;
+    text-transform:uppercase;
+    white-space:nowrap;
+}
+
+.finding-badge.high { background:#321d27; color:#ff6f91; }
+.finding-badge.medium { background:#332c1d; color:#e8b74e; }
+.finding-badge.low { background:#202d20; color:#8ecf8e; }
+
+.finding-description {
+    color:#91a7b6;
+    font-size:11px;
+    line-height:1.55;
+    margin:0 0 11px;
+}
+
+.finding-intel {
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:8px;
+    margin:10px 0;
+}
+
+.intel {
+    border:1px solid #243847;
+    border-radius:7px;
+    background:#101c25;
+    padding:9px 10px;
+}
+
+.intel span {
+    display:block;
+    color:#617a8d;
+    font-size:8px;
+    text-transform:uppercase;
+    letter-spacing:.7px;
+    margin-bottom:5px;
+}
+
+.intel strong {
+    display:block;
+    color:#d0dde5;
+    font-size:10px;
+    line-height:1.35;
+    overflow-wrap:anywhere;
+}
+
+.finding-details {
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+    font-size:10px;
+    color:#8fa5b4;
+}
+
+.finding-detail {
+    border-top:1px solid #1d303d;
+    padding-top:8px;
+    overflow-wrap:anywhere;
+}
+
+.finding-detail.full { grid-column:1/-1; }
+
+.finding-detail b,
+.evidence-box b,
+.recommendation-box b {
+    color:#c8d7e0;
+}
+
+.evidence-box,
+.recommendation-box {
+    margin-top:9px;
+    padding:9px 11px;
+    border-radius:7px;
+    font-size:10px;
+    line-height:1.5;
+    overflow-wrap:anywhere;
+}
+
+.evidence-box {
+    background:#101b24;
+    border:1px solid #203542;
+    color:#91a8b7;
+}
+
+.recommendation-box {
+    background:#101c22;
+    border:1px solid #28404a;
+    color:#a6bbc7;
+}
+
+.report-footer {
+    text-align:center;
+    color:#5f7687;
+    font-size:9px;
+    padding:18px 0 8px;
+}
+
+/* =========================================================
+   PROFESSIONAL PRINT / PDF
+   Designed for Chrome / Edge → Print → Save as PDF
+   ========================================================= */
+@page {
+    size:A4;
+    margin:18mm 15mm 17mm 15mm;
+}
+
+@media print {
+
+    * {
+        -webkit-print-color-adjust:exact !important;
+        print-color-adjust:exact !important;
+    }
+
+    html, body {
+        width:210mm;
+        min-height:297mm;
+        background:#fff !important;
+    }
+
+    body {
+        margin:0 !important;
+        font-family:Arial, Helvetica, sans-serif !important;
+        color:#17232d !important;
+        font-size:9pt !important;
+    }
+
+    .sidebar,
+    .report-toolbar,
+    #state,
+    .page-header {
+        display:none !important;
+    }
+
+    .app,
+    .main {
+        display:block !important;
+        width:100% !important;
+        max-width:none !important;
+        margin:0 !important;
+        padding:0 !important;
+    }
+
+    .report {
+        display:block !important;
+        width:100% !important;
+    }
+
+    /* ----- Cover / Executive Summary ----- */
+    .report-cover {
+        min-height:235mm;
+        box-sizing:border-box;
+        border:0 !important;
+        border-radius:0 !important;
+        background:#fff !important;
+        padding:8mm 4mm 10mm !important;
+        margin:0 !important;
+        position:relative;
+        page-break-after:always;
+        break-after:page;
+    }
+
+    .report-cover::before {
+        content:"WEBGUARD";
+        display:block;
+        font-size:11pt;
+        font-weight:900;
+        letter-spacing:2.5px;
+        color:#172b3a;
+        padding-bottom:5mm;
+        border-bottom:2px solid #172b3a;
+        margin-bottom:30mm;
+    }
+
+    .report-cover-top {
+        display:block !important;
+    }
+
+    .eyebrow {
+        color:#617586 !important;
+        font-size:8pt !important;
+        letter-spacing:1.6px !important;
+        margin-bottom:5mm !important;
+    }
+
+    .report-target {
+        color:#17232d !important;
+        font-size:21pt !important;
+        line-height:1.2 !important;
+        max-width:160mm;
+    }
+
+    .report-meta {
+        color:#5e7180 !important;
+        font-size:9pt !important;
+        margin-top:3mm !important;
+    }
+
+    .report-risk {
+        display:inline-block;
+        margin-top:10mm;
+        padding:3mm 6mm !important;
+        border:1px solid #7b8790 !important;
+        background:#f1f3f5 !important;
+        color:#17232d !important;
+        border-radius:3mm !important;
+        font-size:9pt !important;
+    }
+
+    .report-metrics {
+        margin-top:32mm !important;
+        grid-template-columns:repeat(2,1fr) !important;
+        gap:3mm !important;
+    }
+
+    .report-metric {
+        background:#f7f9fa !important;
+        border:1px solid #ccd4da !important;
+        border-radius:2mm !important;
+        padding:5mm !important;
+        min-height:24mm;
+    }
+
+    .report-metric label {
+        color:#637482 !important;
+        font-size:7.5pt !important;
+    }
+
+    .report-metric strong {
+        color:#17232d !important;
+        font-size:17pt !important;
+    }
+
+    .report-cover::after {
+        content:"Confidential • Generated by WebGuard Security Scanner";
+        position:absolute;
+        left:4mm;
+        right:4mm;
+        bottom:5mm;
+        padding-top:3mm;
+        border-top:1px solid #d5dadd;
+        color:#7a8994;
+        font-size:7pt;
+        text-align:center;
+    }
+
+    /* ----- Every later section ----- */
+    .report-grid {
+        display:grid !important;
+        grid-template-columns:1fr 1fr !important;
+        gap:5mm !important;
+        margin-bottom:5mm !important;
+    }
+
+    .report-section {
+        background:#fff !important;
+        border:1px solid #cbd3d8 !important;
+        border-radius:2mm !important;
+        padding:5mm !important;
+        margin-bottom:5mm !important;
+        box-shadow:none !important;
+    }
+
+    .report-section h3 {
+        color:#172b3a !important;
+        font-size:11pt !important;
+        margin-bottom:4mm !important;
+        border-bottom:1px solid #d8dee2;
+        padding-bottom:3mm;
+    }
+
+    .severity-list {
+        gap:3mm !important;
+    }
+
+    .severity-row {
+        font-size:8pt !important;
+        grid-template-columns:18mm 1fr 8mm !important;
+    }
+
+    .severity-bar {
+        background:#e6eaed !important;
+        height:2mm !important;
+    }
+
+    .severity-fill {
+        background:#526776 !important;
+    }
+
+    .severity-count {
+        color:#344754 !important;
+    }
+
+    .classification {
+        gap:3mm !important;
+    }
+
+    .classification-item {
+        background:#f7f9fa !important;
+        border:1px solid #d1d8dd !important;
+        border-radius:1.5mm !important;
+        padding:4mm !important;
+    }
+
+    .classification-item span {
+        color:#687b89 !important;
+        font-size:7pt !important;
+    }
+
+    .classification-item strong {
+        color:#172b3a !important;
+        font-size:12pt !important;
+    }
+
+    /* Endpoint section gets its own page if needed and MUST NOT clip. */
+    .endpoint-list {
+        max-height:none !important;
+        overflow:visible !important;
+        display:grid !important;
+        grid-template-columns:1fr 1fr !important;
+        gap:2mm 5mm !important;
+    }
+
+    .endpoint-item {
+        background:#fafbfc !important;
+        border:1px solid #d7dde1 !important;
+        border-radius:1.2mm !important;
+        color:#334955 !important;
+        padding:2.5mm 3mm !important;
+        font-size:7.5pt !important;
+        line-height:1.35 !important;
+    }
+
+    .endpoint-item .status {
+        color:#526b5f !important;
+    }
+
+    /* Findings: compact but readable, no giant dark cards. */
+    .finding {
+        background:#fff !important;
+        border:1px solid #c7d0d6 !important;
+        border-left:3px solid #718391 !important;
+        border-radius:1.5mm !important;
+        padding:4mm !important;
+        margin-bottom:4mm !important;
+        box-shadow:none !important;
+        page-break-inside:avoid !important;
+        break-inside:avoid-page !important;
+    }
+
+    .finding-head {
+        margin-bottom:2.5mm !important;
+    }
+
+    .finding-title {
+        color:#172b3a !important;
+        font-size:10.5pt !important;
+        line-height:1.25 !important;
+    }
+
+    .finding-type {
+        color:#687c89 !important;
+        font-size:7pt !important;
+    }
+
+    .finding-badge {
+        border:1px solid #aeb8be !important;
+        background:#f1f3f5 !important;
+        color:#263945 !important;
+        border-radius:1.5mm !important;
+        padding:1.5mm 2.5mm !important;
+        font-size:7pt !important;
+    }
+
+    .finding-description {
+        color:#425764 !important;
+        font-size:8.2pt !important;
+        line-height:1.4 !important;
+        margin-bottom:3mm !important;
+    }
+
+    .finding-intel {
+        gap:2mm !important;
+        margin:3mm 0 !important;
+    }
+
+    .intel {
+        background:#f7f9fa !important;
+        border:1px solid #d1d8dd !important;
+        border-radius:1.2mm !important;
+        padding:2.5mm !important;
+    }
+
+    .intel span {
+        color:#6c7e8a !important;
+        font-size:6.5pt !important;
+        margin-bottom:1.5mm !important;
+    }
+
+    .intel strong {
+        color:#172b3a !important;
+        font-size:7.5pt !important;
+    }
+
+    .finding-details {
+        gap:2mm 5mm !important;
+        font-size:7.5pt !important;
+        color:#4b606c !important;
+    }
+
+    .finding-detail {
+        border-top:1px solid #dce1e5 !important;
+        padding-top:2.5mm !important;
+    }
+
+    .finding-detail b,
+    .evidence-box b,
+    .recommendation-box b {
+        color:#253b48 !important;
+    }
+
+    .evidence-box,
+    .recommendation-box {
+        margin-top:2.5mm !important;
+        padding:2.5mm 3mm !important;
+        border-radius:1.2mm !important;
+        font-size:7.5pt !important;
+        line-height:1.4 !important;
+    }
+
+    .evidence-box {
+        background:#f8fafb !important;
+        border:1px solid #d6dde1 !important;
+        color:#465b68 !important;
+    }
+
+    .recommendation-box {
+        background:#f4f7f8 !important;
+        border:1px solid #cbd5da !important;
+        color:#3e5663 !important;
+    }
+
+    .report-footer {
+        color:#71808a !important;
+        font-size:7pt !important;
+        padding:5mm 0 2mm !important;
+    }
+
+    /* Avoid headings stranded at the bottom of a page. */
+    h1, h2, h3, h4 {
+        break-after:avoid;
+        page-break-after:avoid;
+    }
+
+    /* Browser print header/footer should be the only page chrome. */
+}
+
+/* Responsive screen */
+@media(max-width:900px) {
+    .report-metrics { grid-template-columns:repeat(2,1fr); }
+    .report-grid { grid-template-columns:1fr; }
+    .finding-intel { grid-template-columns:repeat(2,1fr); }
+}
+
+@media(max-width:560px) {
+    .report-metrics { grid-template-columns:1fr 1fr; }
+    .report-cover-top { flex-direction:column; }
+    .report-toolbar select { min-width:100%; }
+    .finding-details { grid-template-columns:1fr; }
+    .finding-intel { grid-template-columns:1fr 1fr; }
+    .classification { grid-template-columns:1fr; }
+}
+</style>
 </head>
+
 <body>
 <div class="app">
+
     <aside class="sidebar">
-        <div class="brand"><h1>WebGuard</h1><span>Security Scanner</span></div>
+        <div class="brand">
+            <h1>WebGuard</h1>
+            <span>Security Scanner</span>
+        </div>
         <nav class="nav">
             <a href="/">Dashboard</a>
             <a href="/history">Scan History</a>
             <a href="/reports" class="active">Reports</a>
+            <a href="/compare">Compare</a>
         </nav>
     </aside>
 
     <main class="main">
-        <header class="header">
+
+        <header class="page-header">
             <h2>Security Reports</h2>
-            <p>Generate a focused security assessment from any completed WebGuard scan.</p>
-            <div class="line"></div>
+            <p>Generate a professional security assessment from a completed WebGuard scan.</p>
+            <div class="header-line"></div>
         </header>
 
-        <div class="toolbar">
+        <div class="report-toolbar">
             <select id="scanSelect">
                 <option value="">Select a completed scan...</option>
             </select>
@@ -41,38 +759,83 @@
         </div>
 
         <section id="report" class="report">
-            <div class="hero">
-                <div class="hero-top">
+
+            <section class="report-cover">
+                <div class="report-cover-top">
                     <div>
-                        <div class="eyebrow">Security Assessment</div>
-                        <div id="reportTarget" class="target"></div>
-                        <div id="reportTime" class="time"></div>
-                        <div id="generatedAt" class="generated-at"></div>
+                        <div class="eyebrow">Security Assessment Report</div>
+                        <div id="reportTarget" class="report-target"></div>
+                        <div id="reportTime" class="report-meta"></div>
+                        <div id="generatedAt" class="report-meta"></div>
                     </div>
-                    <span id="reportRisk" class="risk"></span>
+                    <span id="reportRisk" class="report-risk"></span>
                 </div>
-            </div>
 
-            <div class="metrics">
-                <div class="metric"><label>Endpoints</label><strong id="mEndpoints">0</strong></div>
-                <div class="metric"><label>Vulnerabilities</label><strong id="mVulns">0</strong></div>
-                <div class="metric"><label>High Risk Findings</label><strong id="mHigh">0</strong></div>
-                <div class="metric score"><label>Security Score</label><strong id="mScore">—</strong></div>
-            </div>
-
-            <section class="section">
-                <div class="section-head"><h3>Discovered Endpoints</h3><span id="endpointCount" class="count"></span></div>
-                <div id="endpoints"></div>
+                <div class="report-metrics">
+                    <div class="report-metric">
+                        <label>Endpoints</label>
+                        <strong id="mEndpoints">0</strong>
+                    </div>
+                    <div class="report-metric">
+                        <label>Total Findings</label>
+                        <strong id="mVulns">0</strong>
+                    </div>
+                    <div class="report-metric">
+                        <label>High Risk</label>
+                        <strong id="mHigh">0</strong>
+                    </div>
+                    <div class="report-metric">
+                        <label>Security Score</label>
+                        <strong id="mScore">—</strong>
+                    </div>
+                </div>
             </section>
 
-            <section class="section">
-                <div class="section-head"><h3>Security Findings</h3><span id="findingCount" class="count"></span></div>
+            <div class="report-grid">
+                <section class="report-section">
+                    <h3>Severity Distribution</h3>
+                    <div id="severityList" class="severity-list"></div>
+                </section>
+
+                <section class="report-section">
+                    <h3>Finding Classification</h3>
+                    <div class="classification">
+                        <div class="classification-item">
+                            <span>Confirmed</span>
+                            <strong id="confirmedCount">0</strong>
+                        </div>
+                        <div class="classification-item">
+                            <span>Potential</span>
+                            <strong id="potentialCount">0</strong>
+                        </div>
+                        <div class="classification-item">
+                            <span>Misconfigurations</span>
+                            <strong id="misconfigCount">0</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <section class="report-section">
+                <h3>
+                    Discovered Endpoints
+                    <span id="endpointCount" style="float:right;color:#667f90;font-size:10px;font-weight:500;"></span>
+                </h3>
+                <div id="endpoints" class="endpoint-list"></div>
+            </section>
+
+            <section class="report-section">
+                <h3>
+                    Security Findings
+                    <span id="findingCount" style="float:right;color:#667f90;font-size:10px;font-weight:500;"></span>
+                </h3>
                 <div id="findings"></div>
             </section>
 
-            <div class="print-only">
+            <div class="report-footer">
                 WebGuard Security Scanner • Security Assessment Report
             </div>
+
         </section>
     </main>
 </div>
@@ -80,11 +843,13 @@
 <script>
 let scans = [];
 
-async function loadScans(){
+async function loadScans() {
     const select = document.getElementById("scanSelect");
-    try{
+
+    try {
         const response = await fetch("/api/history");
-        if(!response.ok) throw new Error("Unable to load scan history.");
+        if (!response.ok) throw new Error("Unable to load scan history.");
+
         const data = await response.json();
         scans = Array.isArray(data.scans) ? data.scans : [];
 
@@ -97,16 +862,15 @@ async function loadScans(){
                 `#${scan.id} — ${scan.target} — ${scan.security_score ?? "—"}/100`;
             select.appendChild(option);
         });
-    }catch(error){
-        document.getElementById("state").className = "error";
-        document.getElementById("state").innerHTML =
-            `<h3>Unable to load reports</h3><p>${escapeHTML(error.message)}</p>`;
+    } catch (error) {
+        showError("Unable to load reports", error.message);
     }
 }
 
-async function generateReport(){
+async function generateReport() {
     const id = Number(document.getElementById("scanSelect").value);
-    if(!Number.isInteger(id) || id <= 0){
+
+    if (!Number.isInteger(id) || id <= 0) {
         alert("Please select a completed scan.");
         return;
     }
@@ -114,103 +878,326 @@ async function generateReport(){
     const state = document.getElementById("state");
     const report = document.getElementById("report");
 
+    state.style.display = "block";
     state.className = "loading";
-    state.innerHTML = "<h3>Generating report...</h3><p>Loading assessment details.</p>";
+    state.innerHTML =
+        "<h3>Generating report...</h3><p>Loading assessment details.</p>";
     report.classList.remove("visible");
 
-    try{
+    try {
         const response = await fetch(`/api/history/${id}`);
-        if(!response.ok) throw new Error("Unable to load scan details.");
+
+        if (!response.ok)
+            throw new Error("Unable to load scan details.");
 
         const data = await response.json();
-        if(!data.success || !data.scan) throw new Error("Scan details were not found.");
+
+        if (!data.success || !data.scan)
+            throw new Error("Scan details were not found.");
 
         renderReport(data.scan);
+
         state.style.display = "none";
         report.classList.add("visible");
-    }catch(error){
-        state.style.display = "block";
-        state.className = "error";
-        state.innerHTML = `<h3>Report generation failed</h3><p>${escapeHTML(error.message)}</p>`;
+
+    } catch (error) {
+        showError("Report generation failed", error.message);
     }
 }
 
-function renderReport(scan){
-    document.getElementById("reportTarget").textContent = scan.target || "Unknown target";
+function renderReport(scan) {
+
+    document.getElementById("reportTarget").textContent =
+        scan.target || "Unknown target";
+
     document.getElementById("reportTime").textContent =
         `Scan #${scan.id ?? "—"} • ${scan.scan_time || "Unknown time"}`;
 
-    const generated = new Date();
     document.getElementById("generatedAt").textContent =
-        `Report generated • ${generated.toLocaleString("en-IN", {
+        `Report generated • ${new Date().toLocaleString("en-IN", {
             dateStyle: "medium",
             timeStyle: "short"
         })}`;
 
     const risk = String(scan.risk_level || "Unknown");
-    const riskClass = getRiskClass(risk);
     const riskEl = document.getElementById("reportRisk");
+
     riskEl.textContent = risk;
-    riskEl.className = `risk ${riskClass}`;
-
-    document.getElementById("mEndpoints").textContent = scan.endpoints_count ?? 0;
-    document.getElementById("mVulns").textContent = scan.vulnerability_count ?? 0;
-    document.getElementById("mHigh").textContent = scan.high_risk_count ?? 0;
-    document.getElementById("mScore").textContent =
-        scan.security_score == null ? "—" : `${scan.security_score}/100`;
-
-    const endpoints = Array.isArray(scan.endpoints) ? scan.endpoints : [];
-    document.getElementById("endpointCount").textContent = `${endpoints.length} discovered`;
-
-    document.getElementById("endpoints").innerHTML = endpoints.length
-        ? endpoints.map(ep => `
-            <div class="endpoint">
-                <span class="endpoint-url">${escapeHTML(
-                    typeof ep === "string" ? ep : (ep.url || "Unknown endpoint")
-                )}</span>
-                <span class="ok">${escapeHTML(
-                    typeof ep === "object" && ep.status_code ? ep.status_code : "OK"
-                )}</span>
-            </div>`).join("")
-        : '<div class="empty" style="padding:30px"><h3>No endpoint data</h3><p>This scan did not store endpoint details.</p></div>';
+    riskEl.className = `report-risk ${getRiskClass(risk)}`;
 
     const findings = Array.isArray(scan.findings) ? scan.findings : [];
-    document.getElementById("findingCount").textContent = `${findings.length} detected`;
+    const endpoints = Array.isArray(scan.endpoints) ? scan.endpoints : [];
 
-    document.getElementById("findings").innerHTML = findings.length
-        ? findings.map(f => {
-            const severity = String(f.severity || "Unknown");
-            const severityClass = getRiskClass(severity);
-            return `
-                <article class="finding">
-                    <div class="finding-top">
-                        <div>
-                            <h4>${escapeHTML(f.name || f.type || "Security Finding")}</h4>
-                            <div class="finding-type">${escapeHTML(f.type || "Security issue")}</div>
-                        </div>
-                        <span class="badge ${severityClass}">${escapeHTML(severity)}</span>
-                    </div>
-                    <p>${escapeHTML(f.description || "No description available.")}</p>
-                    <div class="finding-meta">
-                        <div class="meta"><b>Affected Endpoint:</b> ${escapeHTML(f.url || "Not specified")}</div>
-                        <div class="meta"><b>Parameter:</b> ${escapeHTML(f.parameter || "None")}</div>
-                        <div class="meta" style="grid-column:1/-1"><b>Recommendation:</b> ${escapeHTML(f.recommendation || "Review and remediate the finding.")}</div>
-                    </div>
-                </article>`;
-        }).join("")
-        : '<div class="empty" style="padding:30px"><h3>No vulnerabilities recorded</h3><p>No findings were stored for this assessment.</p></div>';
+    document.getElementById("mEndpoints").textContent =
+        scan.endpoints_count ?? endpoints.length;
+
+    document.getElementById("mVulns").textContent =
+        scan.vulnerability_count ?? findings.length;
+
+    document.getElementById("mHigh").textContent =
+        scan.high_risk_count ?? 0;
+
+    document.getElementById("mScore").textContent =
+        scan.security_score == null
+            ? "—"
+            : `${scan.security_score}/100`;
+
+    renderSeverity(findings);
+    renderClassification(findings);
+    renderEndpoints(endpoints);
+    renderFindings(findings);
 }
 
-function getRiskClass(value){
-    const v = String(value).toLowerCase();
-    if(v === "critical" || v === "high") return "high";
-    if(v === "medium") return "medium";
-    if(v === "low") return "low";
-    if(v === "secure" || v === "none") return "secure";
+function renderSeverity(findings) {
+
+    const counts = {
+        Critical: 0,
+        High: 0,
+        Medium: 0,
+        Low: 0
+    };
+
+    findings.forEach(f => {
+        const severity = normalizeSeverity(f.severity);
+        if (counts[severity] !== undefined)
+            counts[severity]++;
+    });
+
+    const max = Math.max(...Object.values(counts), 1);
+
+    document.getElementById("severityList").innerHTML =
+        Object.entries(counts).map(([severity, count]) => `
+            <div class="severity-row">
+                <span>${severity}</span>
+                <div class="severity-bar">
+                    <div class="severity-fill"
+                         style="width:${(count / max) * 100}%"></div>
+                </div>
+                <span class="severity-count">${count}</span>
+            </div>
+        `).join("");
+}
+
+function renderClassification(findings) {
+
+    let confirmed = 0;
+    let potential = 0;
+    let misconfig = 0;
+
+    findings.forEach(f => {
+        const category = String(f.category || "").toLowerCase();
+
+        if (category === "vulnerability")
+            confirmed++;
+        else if (category === "potential vulnerability")
+            potential++;
+        else if (category === "security misconfiguration")
+            misconfig++;
+    });
+
+    document.getElementById("confirmedCount").textContent = confirmed;
+    document.getElementById("potentialCount").textContent = potential;
+    document.getElementById("misconfigCount").textContent = misconfig;
+}
+
+function renderEndpoints(endpoints) {
+
+    document.getElementById("endpointCount").textContent =
+        `${endpoints.length} discovered`;
+
+    document.getElementById("endpoints").innerHTML =
+        endpoints.length
+            ? endpoints.map(ep => {
+                const url =
+                    typeof ep === "string"
+                        ? ep
+                        : (ep.url || "Unknown endpoint");
+
+                const status =
+                    typeof ep === "object" && ep.status_code
+                        ? ep.status_code
+                        : "OK";
+
+                return `
+                    <div class="endpoint-item">
+                        <span class="status">${escapeHTML(status)}</span>
+                        ${escapeHTML(url)}
+                    </div>
+                `;
+            }).join("")
+            : `<div class="endpoint-item">No endpoint data stored.</div>`;
+}
+
+function renderFindings(findings) {
+
+    document.getElementById("findingCount").textContent =
+        `${findings.length} detected`;
+
+    if (!findings.length) {
+        document.getElementById("findings").innerHTML =
+            `<div class="endpoint-item">No security findings recorded.</div>`;
+        return;
+    }
+
+    document.getElementById("findings").innerHTML =
+        findings.map(f => {
+
+            const severity = normalizeSeverity(f.severity);
+            const confidence = f.confidence || "Medium";
+
+            const verification =
+                f.verification_status ||
+                (f.verification === "reproduced"
+                    ? "Reproduced"
+                    : f.test_mode === "active"
+                        ? "Actively Tested"
+                        : "Observed");
+
+            const affected = Array.isArray(f.affected_endpoints)
+                ? f.affected_endpoints
+                : [];
+
+            const affectedText = affected.length
+                ? affected.join(" • ")
+                : (f.url || f.endpoint || "Not specified");
+
+            return `
+                <article class="finding">
+
+                    <div class="finding-head">
+                        <div>
+                            <h4 class="finding-title">
+                                ${escapeHTML(f.name || f.type || "Security Finding")}
+                            </h4>
+                            <div class="finding-type">
+                                ${escapeHTML(f.type || "Security issue")}
+                            </div>
+                        </div>
+
+                        <span class="finding-badge ${getRiskClass(severity)}">
+                            ${escapeHTML(severity)}
+                        </span>
+                    </div>
+
+                    <p class="finding-description">
+                        ${escapeHTML(f.description || "No description available.")}
+                    </p>
+
+                    <div class="finding-intel">
+                        <div class="intel">
+                            <span>CWE</span>
+                            <strong>${escapeHTML(f.cwe || "Not mapped")}</strong>
+                        </div>
+
+                        <div class="intel">
+                            <span>OWASP</span>
+                            <strong>${escapeHTML(f.owasp || "Not mapped")}</strong>
+                        </div>
+
+                        <div class="intel">
+                            <span>Confidence</span>
+                            <strong>${escapeHTML(confidence)}</strong>
+                        </div>
+
+                        <div class="intel">
+                            <span>Verification</span>
+                            <strong>${escapeHTML(verification)}</strong>
+                        </div>
+                    </div>
+
+                    <div class="finding-details">
+
+                        <div class="finding-detail">
+                            <b>Affected Endpoint:</b><br>
+                            ${escapeHTML(f.url || f.endpoint || "Not specified")}
+                        </div>
+
+                        <div class="finding-detail">
+                            <b>Parameter:</b><br>
+                            ${escapeHTML(f.parameter || "None")}
+                        </div>
+
+                        <div class="finding-detail">
+                            <b>Method:</b><br>
+                            ${escapeHTML(f.method || "Not specified")}
+                        </div>
+
+                        <div class="finding-detail">
+                            <b>Test Mode:</b><br>
+                            ${escapeHTML(f.test_mode || "Not specified")}
+                        </div>
+
+                        <div class="finding-detail full">
+                            <b>Affected Endpoints:</b><br>
+                            ${escapeHTML(affectedText)}
+                        </div>
+
+                    </div>
+
+                    <div class="evidence-box">
+                        <b>Evidence:</b>
+                        ${escapeHTML(f.evidence || "No additional evidence recorded.")}
+                    </div>
+
+                    <div class="evidence-box">
+                        <b>Detection:</b>
+                        ${escapeHTML(f.detection || "Automated analysis.")}
+                    </div>
+
+                    <div class="recommendation-box">
+                        <b>Recommendation:</b>
+                        ${escapeHTML(
+                            f.recommendation ||
+                            "Review and remediate the finding."
+                        )}
+                    </div>
+
+                </article>
+            `;
+        }).join("");
+}
+
+function normalizeSeverity(value) {
+
+    const v = String(value || "Low").toLowerCase();
+
+    if (v === "critical") return "Critical";
+    if (v === "high") return "High";
+    if (v === "medium") return "Medium";
+
+    return "Low";
+}
+
+function getRiskClass(value) {
+
+    const v = String(value || "").toLowerCase();
+
+    if (v === "critical" || v === "high")
+        return "high";
+
+    if (v === "medium")
+        return "medium";
+
+    if (v === "secure" || v === "none")
+        return "secure";
+
     return "low";
 }
 
-function escapeHTML(value){
+function showError(title, message) {
+
+    const state = document.getElementById("state");
+
+    state.style.display = "block";
+    state.className = "error";
+    state.innerHTML = `
+        <h3>${escapeHTML(title)}</h3>
+        <p>${escapeHTML(message)}</p>
+    `;
+}
+
+function escapeHTML(value) {
+
     const div = document.createElement("div");
     div.textContent = String(value ?? "");
     return div.innerHTML;
@@ -218,5 +1205,6 @@ function escapeHTML(value){
 
 loadScans();
 </script>
+
 </body>
 </html>

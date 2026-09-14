@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WebGuard | Scan Comparison</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+<style>
+.compare-page{margin-top:4px}
+.compare-toolbar{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;margin:20px 0 22px}
+.field label{display:block;color:#7590a9;font-size:10px;text-transform:uppercase;letter-spacing:.8px;margin-bottom:7px}
+.field select,.compare-btn{width:100%;border:1px solid #2b4152;background:#101a23;color:#dce8f2;border-radius:8px;padding:11px 13px;font:inherit}
+.compare-btn{cursor:pointer;background:#246bd6;border-color:#347de8;color:#fff;font-weight:700}
+.compare-btn:hover{background:#2d79ed}
+.compare-state{border:1px dashed #263947;background:#0d151c;border-radius:10px;padding:65px 20px;text-align:center}
+.compare-state .state-icon{font-size:34px;margin-bottom:12px}
+.compare-state p{color:#688096;font-size:13px;margin-top:7px}
+.compare-report{display:none}.compare-report.visible{display:block}
+.compare-hero{border:1px solid #263b4b;border-radius:12px;background:linear-gradient(135deg,#101b25,#0c141b);padding:24px;margin-bottom:16px}
+.hero-grid{display:grid;grid-template-columns:1fr 55px 1fr;gap:20px;align-items:center}
+.scan-label{font-size:9px;color:#6386a3;text-transform:uppercase;letter-spacing:1px;margin-bottom:7px}
+.scan-id{font-size:20px;font-weight:800}
+.scan-target,.scan-time{color:#8da3b3;font-size:11px;margin-top:6px;word-break:break-all}
+.hero-arrow{text-align:center;color:#7190a5;font-size:25px}
+.score-row{text-align:center;margin-top:20px;padding-top:16px;border-top:1px solid #20313e}
+.score-row strong{font-size:22px}.score-row span{color:#728b9d;font-size:11px;margin-left:6px}
+.improved{color:#57d68d}.worse{color:#ff777d}.same{color:#e9bd4c}
+.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+.metric{background:#101820;border:1px solid #22313e;border-radius:9px;padding:16px}
+.metric label{display:block;color:#7590a9;font-size:9px;text-transform:uppercase;letter-spacing:.7px;margin-bottom:7px}
+.metric strong{font-size:21px}
+.metric small{display:block;color:#627b91;font-size:9px;margin-top:4px}
+.compare-section{background:#0d151c;border:1px solid #22313e;border-radius:10px;padding:18px;margin-bottom:16px}
+.compare-section h3{font-size:15px;margin:0 0 14px}
+.change-list{display:grid;gap:8px}
+.change{display:grid;grid-template-columns:30px 1fr auto;gap:10px;align-items:center;border:1px solid #1f303d;background:#0a1117;border-radius:7px;padding:11px}
+.change-icon{text-align:center;font-size:16px}.change-title{font-size:12px;font-weight:700}.change-meta{color:#70889a;font-size:10px;margin-top:4px;word-break:break-all;line-height:1.4}
+.tag{padding:5px 8px;border-radius:12px;font-size:9px;font-weight:800;text-transform:uppercase;white-space:nowrap}
+.tag.fixed{background:#153b2b;color:#57d68d}.tag.new{background:#4a2024;color:#ff777d}.tag.changed{background:#453719;color:#e9bd4c}.tag.unchanged{background:#15374b;color:#55b9ee}
+.empty-change{padding:24px;text-align:center;color:#6f8799;border:1px dashed #263947;border-radius:7px;font-size:12px}
+@media(max-width:850px){.compare-toolbar{grid-template-columns:1fr}.hero-grid{grid-template-columns:1fr}.hero-arrow{transform:rotate(90deg)}.metrics{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.metrics{grid-template-columns:1fr}.change{grid-template-columns:25px 1fr}.tag{grid-column:2;width:max-content}}
+@media print{.sidebar,.page-header,.compare-toolbar,#compareState{display:none!important}.main{margin:0!important;width:100%!important;padding:12mm!important}.compare-report{display:block!important}.compare-hero,.metric,.compare-section{background:#fff!important;border-color:#ccc!important;color:#111}.scan-target,.scan-time,.metric label,.metric small,.change-meta{color:#555!important}.scan-id,.metric strong,.compare-section h3{color:#111!important}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="sidebar">
+<div class="brand"><h1>WebGuard</h1><span>Security Scanner</span></div>
+<nav class="nav">
+<a href="/">Dashboard</a>
+<a href="/history">Scan History</a>
+<a href="/reports">Reports</a>
+<a href="/compare" class="active">Compare</a>
+</nav>
+</aside>
+
+<main class="main compare-page">
+<header class="page-header">
+<h2>Scan Comparison</h2>
+<p>Compare two completed assessments and track security posture changes.</p>
+<div class="header-line"></div>
+</header>
+
+<div class="compare-toolbar">
+<div class="field"><label>Baseline Scan</label><select id="baseline"></select></div>
+<div class="field"><label>Current Scan</label><select id="current"></select></div>
+<button class="compare-btn" onclick="compareScans()">Compare Scans</button>
+</div>
+
+<div id="compareState" class="compare-state">
+<div class="state-icon">⇄</div>
+<h3>Select two scans</h3>
+<p>Choose a baseline and current assessment to see what changed.</p>
+</div>
+
+<section id="compareReport" class="compare-report">
+<div class="compare-hero">
+<div class="hero-grid">
+<div>
+<div class="scan-label">Baseline</div>
+<div id="baseId" class="scan-id"></div>
+<div id="baseTarget" class="scan-target"></div>
+<div id="baseTime" class="scan-time"></div>
+</div>
+<div class="hero-arrow">→</div>
+<div>
+<div class="scan-label">Current</div>
+<div id="currentId" class="scan-id"></div>
+<div id="currentTarget" class="scan-target"></div>
+<div id="currentTime" class="scan-time"></div>
+</div>
+</div>
+<div id="scoreRow" class="score-row"></div>
+</div>
+
+<div class="metrics">
+<div class="metric"><label>Fixed Findings</label><strong id="fixedCount">0</strong><small>Issues no longer present</small></div>
+<div class="metric"><label>New Findings</label><strong id="newCount">0</strong><small>Newly discovered issues</small></div>
+<div class="metric"><label>Severity Changes</label><strong id="changedCount">0</strong><small>Existing findings changed</small></div>
+<div class="metric"><label>Unchanged</label><strong id="unchangedCount">0</strong><small>Same finding + severity</small></div>
+</div>
+
+<section class="compare-section">
+<h3>Finding Changes</h3>
+<div id="findingChanges" class="change-list"></div>
+</section>
+
+<section class="compare-section">
+<h3>Endpoint Changes</h3>
+<div id="endpointChanges" class="change-list"></div>
+</section>
+</section>
+</main>
+</div>
+
+<script>
+let scans=[];
+
+async function loadScans(){
+    const baseline=document.getElementById("baseline");
+    const current=document.getElementById("current");
+    try{
+        const response=await fetch("/api/history");
+        if(!response.ok) throw new Error("Unable to load scan history.");
+        const data=await response.json();
+        scans=Array.isArray(data.scans)?data.scans:[];
+        const options='<option value="">Select scan...</option>'+scans.map(s=>
+            `<option value="${Number(s.id)}">#${Number(s.id)} — ${escapeHTML(s.target||"Unknown")} — ${s.security_score??"—"}/100</option>`
+        ).join("");
+        baseline.innerHTML=options;
+        current.innerHTML=options;
+        if(scans.length<2) showState("Not enough scans","Run at least two scans before using comparison.");
+    }catch(error){
+        showState("Unable to load scans",error.message);
+    }
+}
+
+async function compareScans(){
+    const baseline=Number(document.getElementById("baseline").value);
+    const current=Number(document.getElementById("current").value);
+    if(!baseline||!current){alert("Please select both scans.");return}
+    if(baseline===current){alert("Baseline and current scan must be different.");return}
+
+    showState("Comparing scans...","Analyzing findings, severity and endpoints.");
+    try{
+        const response=await fetch(`/api/compare?baseline=${baseline}&current=${current}`);
+        const data=await response.json();
+        if(!response.ok||!data.success) throw new Error(data.error||"Comparison failed.");
+        renderComparison(data.comparison);
+        document.getElementById("compareState").style.display="none";
+        document.getElementById("compareReport").classList.add("visible");
+    }catch(error){
+        showState("Comparison failed",error.message);
+    }
+}
+
+function renderComparison(c){
+    const b=c.baseline, n=c.current, s=c.summary;
+    document.getElementById("baseId").textContent=`Scan #${b.id}`;
+    document.getElementById("baseTarget").textContent=b.target||"Unknown target";
+    document.getElementById("baseTime").textContent=b.scan_time||"";
+    document.getElementById("currentId").textContent=`Scan #${n.id}`;
+    document.getElementById("currentTarget").textContent=n.target||"Unknown target";
+    document.getElementById("currentTime").textContent=n.scan_time||"";
+
+    const delta=Number(s.score_delta||0);
+    const scoreClass=delta>0?"improved":delta<0?"worse":"same";
+    const scoreText=delta>0?`+${delta}`:String(delta);
+    document.getElementById("scoreRow").innerHTML=
+        `<strong class="${scoreClass}">${b.security_score}/100 → ${n.security_score}/100</strong>
+         <span class="${scoreClass}">${scoreText} score change • ${escapeHTML(s.risk_change)}</span>`;
+
+    document.getElementById("fixedCount").textContent=s.fixed;
+    document.getElementById("newCount").textContent=s.new;
+    document.getElementById("changedCount").textContent=s.severity_changed;
+    document.getElementById("unchangedCount").textContent=s.unchanged;
+
+    renderFindingChanges(c);
+    renderEndpointChanges(c);
+}
+
+function renderFindingChanges(c){
+    const items=[
+        ...c.fixed.map(x=>({...x,status:"fixed"})),
+        ...c.new.map(x=>({...x,status:"new"})),
+        ...c.severity_changed.map(x=>({...x,status:"changed"})),
+        ...c.unchanged.map(x=>({...x,status:"unchanged"}))
+    ];
+    const box=document.getElementById("findingChanges");
+    if(!items.length){box.innerHTML='<div class="empty-change">No finding changes detected.</div>';return}
+    box.innerHTML=items.map(x=>{
+        const icon=x.status==="fixed"?"✓":x.status==="new"?"!":x.status==="changed"?"↕":"•";
+        let meta=x.endpoint||"";
+        if(x.parameter) meta+=` • parameter: ${x.parameter}`;
+        if(x.status==="changed") meta+=` • ${x.old_severity} → ${x.new_severity}`;
+        if(x.cwe) meta+=` • ${x.cwe}`;
+        return `<div class="change">
+            <div class="change-icon">${icon}</div>
+            <div>
+                <div class="change-title">${escapeHTML(x.name||x.type||"Finding")}</div>
+                <div class="change-meta">${escapeHTML(meta)}</div>
+            </div>
+            <span class="tag ${x.status}">${x.status}</span>
+        </div>`;
+    }).join("");
+}
+
+function renderEndpointChanges(c){
+    const items=[
+        ...c.endpoint_changes.added.map(x=>({value:x,status:"new"})),
+        ...c.endpoint_changes.removed.map(x=>({value:x,status:"fixed"}))
+    ];
+    const box=document.getElementById("endpointChanges");
+    if(!items.length){box.innerHTML='<div class="empty-change">No endpoint changes detected.</div>';return}
+    box.innerHTML=items.map(x=>
+        `<div class="change">
+            <div class="change-icon">${x.status==="new"?"＋":"−"}</div>
+            <div><div class="change-title">${escapeHTML(x.value)}</div></div>
+            <span class="tag ${x.status}">${x.status==="new"?"added":"removed"}</span>
+        </div>`
+    ).join("");
+}
+
+function showState(title,message){
+    const state=document.getElementById("compareState");
+    state.style.display="block";
+    state.innerHTML=`<div class="state-icon">⇄</div><h3>${escapeHTML(title)}</h3><p>${escapeHTML(message)}</p>`;
+    document.getElementById("compareReport").classList.remove("visible");
+}
+
+function escapeHTML(value){
+    const div=document.createElement("div");
+    div.textContent=String(value??"");
+    return div.innerHTML;
+}
+
+loadScans();
+</script>
+</body>
+</html>

@@ -13,6 +13,16 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
+
+<style>
+.finding-intelligence{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:14px 0;}
+.intel-item{min-width:0;padding:10px 12px;background:#101a23;border:1px solid #243847;border-radius:7px;}
+.intel-item span{display:block;margin-bottom:5px;color:#648099;font-size:9px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;}
+.intel-item strong{display:block;color:#c5d3df;font-size:10px;line-height:1.4;overflow-wrap:anywhere;}
+.finding-impact{color:#8ba0b1!important;line-height:1.55!important;}
+@media(max-width:900px){.finding-intelligence{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:560px){.finding-intelligence{grid-template-columns:1fr;}}
+</style>
 </head>
 
 <body>
@@ -730,6 +740,76 @@
                                     ${escapeHTML(
                                         finding.detection ||
                                         "Automated analysis"
+                                    )}
+
+                                </p>
+
+                                <div class="finding-intelligence">
+
+                                    <div class="intel-item">
+                                        <span>CWE</span>
+                                        <strong>
+                                            ${escapeHTML(
+                                                finding.cwe ||
+                                                "Not mapped"
+                                            )}
+                                        </strong>
+                                    </div>
+
+                                    <div class="intel-item">
+                                        <span>OWASP</span>
+                                        <strong>
+                                            ${escapeHTML(
+                                                finding.owasp ||
+                                                "Not mapped"
+                                            )}
+                                        </strong>
+                                    </div>
+
+                                    <div class="intel-item">
+                                        <span>Confidence</span>
+                                        <strong>
+                                            ${escapeHTML(
+                                                finding.confidence ||
+                                                "Medium"
+                                            )}
+                                        </strong>
+                                    </div>
+
+                                    <div class="intel-item">
+                                        <span>Verification</span>
+                                        <strong>
+                                            ${escapeHTML(
+                                                finding.verification_status ||
+                                                "Observed"
+                                            )}
+                                        </strong>
+                                    </div>
+
+                                </div>
+
+                                <p class="finding-impact">
+
+                                    <strong>
+                                        Impact:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        finding.impact ||
+                                        "Review the affected behavior and assess its security impact."
+                                    )}
+
+                                </p>
+
+                                <p>
+
+                                    <strong>
+                                        Evidence:
+                                    </strong>
+
+                                    ${escapeHTML(
+                                        finding.evidence ||
+                                        "No additional evidence recorded."
                                     )}
 
                                 </p>

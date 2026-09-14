@@ -10,11 +10,26 @@
           href="{{ url_for('static', filename='css/style.css') }}">
 
     
+
+<style>
+.scan-profile-panel { margin-top: 18px; padding: 18px; border: 1px solid rgba(128,128,128,.25); border-radius: 14px; background: rgba(128,128,128,.06); }
+.scan-profile-heading { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:14px; }
+.scan-profile-heading strong { display:block; }
+.scan-profile-heading .profile-description { display:block; margin-top:5px; font-size:13px; opacity:.72; font-weight:400; }
+.scan-profile-safe { font-size:12px; font-weight:700; padding:6px 10px; border-radius:999px; border:1px solid rgba(70,180,110,.35); white-space:nowrap; }
+.scan-profile-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.scan-profile-item { padding:12px; border-radius:10px; background:rgba(128,128,128,.07); }
+.scan-profile-item strong { display:block; font-size:18px; }
+.scan-profile-item span { display:block; margin-top:4px; font-size:12px; opacity:.68; }
+@media (max-width: 760px) { .scan-profile-grid { grid-template-columns:1fr; } .scan-profile-heading { align-items:flex-start; flex-direction:column; } }
+</style>
+
 </head>
 
 <body>
 
-<div class="app">
+
+<div id="dashboardApp" class="app">
 
     <!-- Sidebar -->
     <aside class="sidebar">
@@ -54,7 +69,7 @@
                     for common security issues.
                 </p>
             </div>
-        </header>
+</header>
 
 
         <!-- Scan Card -->
@@ -122,7 +137,35 @@
 
                 </div>
 
-            </div><div class="scan-input">
+            </div>
+
+            <!-- Automatic Scan Profile -->
+            <div class="scan-profile-panel">
+                <div class="scan-profile-heading">
+                    <div>
+                        <strong>⚙ Automatic Scan Profile</strong>
+                        <span class="profile-description" id="scanProfileDescription">Balanced security assessment with safe active checks.</span>
+                    </div>
+                    <span class="scan-profile-safe">✓ Automatically configured</span>
+                </div>
+
+                <div class="scan-profile-grid">
+                    <div class="scan-profile-item">
+                        <strong id="profileMaxPages"></strong>
+                        <span>Maximum Pages</span>
+                    </div>
+                    <div class="scan-profile-item">
+                        <strong id="profileTimeout">10s</strong>
+                        <span>Request Timeout</span>
+                    </div>
+                    <div class="scan-profile-item">
+                        <strong id="profileDepth">2</strong>
+                        <span>Crawl Depth</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="scan-input">
 
                 <input
                     type="url"
