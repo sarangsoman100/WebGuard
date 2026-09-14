@@ -1,5 +1,4 @@
 document.addEventListener("DOMContentLoaded", () => {
-
     // =========================================================
     // ELEMENTS
     // =========================================================
@@ -25,8 +24,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const modeStatus =
         document.getElementById("modeStatus");
 
-    let selectedScanMode = "standard";
-
 
     // =========================================================
     // DASHBOARD STATISTICS
@@ -43,9 +40,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const securityScore =
         document.getElementById("securityScore");
-
-
-    // Classification statistics
 
     const confirmedVulnerabilities =
         document.getElementById(
@@ -69,7 +63,42 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
-    // UTILITIES
+    // AUTOMATIC SCAN PROFILES
+    // =========================================================
+
+    const SCAN_PROFILES = {
+
+        passive: {
+            max_pages: 10,
+            timeout: 5,
+            max_depth: 1,
+            description:
+                "Low-impact observation without active parameter probes."
+        },
+
+        standard: {
+            max_pages: 20,
+            timeout: 10,
+            max_depth: 2,
+            description:
+                "Recommended balanced assessment with safe active checks."
+        },
+
+        active: {
+            max_pages: 50,
+            timeout: 15,
+            max_depth: 3,
+            description:
+                "Deeper authorized assessment with additional comparisons."
+        }
+    };
+
+
+    let selectedScanMode = "standard";
+
+
+    // =========================================================
+    // UTILITY FUNCTIONS
     // =========================================================
 
     function escapeHTML(value) {
@@ -113,14 +142,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
-    // SCAN MODE HELPERS
+    // MODE LABEL
     // =========================================================
 
     function getModeLabel(mode) {
 
         const labels = {
+
             passive: "Passive",
+
             standard: "Standard",
+
             active: "Active"
         };
 
@@ -130,31 +162,146 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
 
+    // =========================================================
+    // GET AUTOMATIC PROFILE
+    // =========================================================
+
+    function getScanProfile(mode) {
+
+        return (
+            SCAN_PROFILES[
+                String(
+                    mode || "standard"
+                ).toLowerCase()
+            ]
+            ||
+            SCAN_PROFILES.standard
+        );
+    }
+
+
+    // =========================================================
+    // UPDATE AUTOMATIC CONFIGURATION UI
+    // =========================================================
+
+    function updateScanProfileUI(mode) {
+
+        const profile =
+            getScanProfile(mode);
+
+
+        // -----------------------------------------------------
+        // Optional configuration elements
+        // -----------------------------------------------------
+
+        const profilePages =
+            document.getElementById(
+                "profileMaxPages"
+            );
+
+        const profileTimeout =
+            document.getElementById(
+                "profileTimeout"
+            );
+
+        const profileDepth =
+            document.getElementById(
+                "profileDepth"
+            );
+
+        const profileDescription =
+            document.getElementById(
+                "scanprofileDescription"
+            );
+
+
+        if (profilePages) {
+
+            profilePages.textContent =
+                profile.max_pages;
+        }
+
+
+        if (profileTimeout) {
+
+            profileTimeout.textContent =
+                `${profile.timeout}s`;
+        }
+
+
+        if (profileDepth) {
+
+            profileDepth.textContent =
+                profile.max_depth;
+        }
+
+
+        if (profileDescription) {
+
+            profileDescription.textContent =
+                profile.description;
+        }
+
+
+        // -----------------------------------------------------
+        // Generic profile values
+        // -----------------------------------------------------
+
+        const profileName =
+            document.getElementById(
+                "profileName"
+            );
+
+        if (profileName) {
+
+            profileName.textContent =
+                `${getModeLabel(mode)} Scan`;
+        }
+    }
+
+
+    // =========================================================
+    // BUTTON LOADING STATE
+    // =========================================================
+
     function setLoading(state) {
 
         if (!scanButton) {
             return;
         }
 
+
         scanButton.disabled = state;
+
 
         if (state) {
 
             scanButton.textContent =
-                `🧠 ${getModeLabel(selectedScanMode)} Scanning...`;
+                `🧠 ${getModeLabel(
+                    selectedScanMode
+                )} Scanning...`;
 
         } else {
 
             scanButton.textContent =
-                `🔍 Start ${getModeLabel(selectedScanMode)} Scan`;
+                `🔍 Start ${getModeLabel(
+                    selectedScanMode
+                )} Scan`;
         }
     }
 
 
+    // =========================================================
+    // SELECT SCAN MODE
+    // =========================================================
+
     function setSelectedMode(mode) {
 
         const normalized =
-            String(mode || "standard").toLowerCase();
+            String(
+                mode || "standard"
+            ).toLowerCase();
+
 
         if (
             ![
@@ -163,20 +310,31 @@ document.addEventListener("DOMContentLoaded", () => {
                 "active"
             ].includes(normalized)
         ) {
+
             return;
         }
 
-        selectedScanMode = normalized;
+
+        selectedScanMode =
+            normalized;
+
+
+        // -----------------------------------------------------
+        // Update mode cards
+        // -----------------------------------------------------
 
         scanModeOptions.forEach(option => {
 
             const isSelected =
-                option.dataset.mode === selectedScanMode;
+                option.dataset.mode ===
+                selectedScanMode;
+
 
             option.classList.toggle(
                 "selected",
                 isSelected
             );
+
 
             option.setAttribute(
                 "aria-checked",
@@ -186,11 +344,32 @@ document.addEventListener("DOMContentLoaded", () => {
             );
         });
 
+
+        // -----------------------------------------------------
+        // Update mode status
+        // -----------------------------------------------------
+
         if (modeStatus) {
 
             modeStatus.textContent =
-                getModeLabel(selectedScanMode);
+                getModeLabel(
+                    selectedScanMode
+                );
         }
+
+
+        // -----------------------------------------------------
+        // Automatically update scan configuration
+        // -----------------------------------------------------
+
+        updateScanProfileUI(
+            selectedScanMode
+        );
+
+
+        // -----------------------------------------------------
+        // Update scan button
+        // -----------------------------------------------------
 
         if (
             scanButton &&
@@ -198,13 +377,15 @@ document.addEventListener("DOMContentLoaded", () => {
         ) {
 
             scanButton.textContent =
-                `🔍 Start ${getModeLabel(selectedScanMode)} Scan`;
+                `🔍 Start ${getModeLabel(
+                    selectedScanMode
+                )} Scan`;
         }
     }
 
 
     // =========================================================
-    // HISTORY COUNT
+    // LOAD HISTORY STATISTICS
     // =========================================================
 
     async function loadHistoryStats() {
@@ -217,18 +398,25 @@ document.addEventListener("DOMContentLoaded", () => {
                     Date.now()
                 );
 
+
             if (!response.ok) {
+
                 return;
             }
+
 
             const data =
                 await response.json();
 
+
             if (totalScans) {
 
                 totalScans.textContent =
-                    (data.scans || []).length;
+                    (
+                        data.scans || []
+                    ).length;
             }
+
 
         } catch (error) {
 
@@ -241,7 +429,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
-    // ENDPOINT RENDERING
+    // RENDER ENDPOINTS
     // =========================================================
 
     function renderEndpoints(endpoints) {
@@ -272,7 +460,9 @@ document.addEventListener("DOMContentLoaded", () => {
                     <div class="endpoint-row">
 
                         <span>
-                            ${escapeHTML(endpoint.url)}
+                            ${escapeHTML(
+                                endpoint.url
+                            )}
                         </span>
 
                         <strong>
@@ -291,7 +481,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     // =========================================================
-    // FINDING RENDERING
+    // RENDER FINDING
     // =========================================================
 
     function renderFinding(finding) {
@@ -379,9 +569,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         finding.severity
                     )}"
                 >
+
                     ${escapeHTML(
                         finding.severity
                     )}
+
                 </span>
 
             </div>
@@ -398,15 +590,17 @@ document.addEventListener("DOMContentLoaded", () => {
         const findings =
             data.findings || [];
 
+
         const endpoints =
             data.discovered_endpoints || [];
+
 
         const risk =
             data.risk || {};
 
 
         // -----------------------------------------------------
-        // MAIN DASHBOARD
+        // Statistics
         // -----------------------------------------------------
 
         if (totalVulnerabilities) {
@@ -447,87 +641,106 @@ document.addEventListener("DOMContentLoaded", () => {
         if (highRisk) {
 
             highRisk.textContent =
-                (risk.high || 0) +
-                (risk.critical || 0);
+                risk.high_risk ?? 0;
         }
 
 
         if (securityScore) {
 
             securityScore.textContent =
-                risk.security_score !== undefined
-                    ? `${risk.security_score}/100`
-                    : "--";
+                `${risk.security_score ?? 0}/100`;
         }
 
 
         // -----------------------------------------------------
-        // RISK BADGE
+        // Risk Badge
         // -----------------------------------------------------
-
-        const riskLevel =
-            String(
-                risk.risk_level || "unknown"
-            ).toLowerCase();
-
 
         if (scanBadge) {
 
             scanBadge.textContent =
-                riskLevel.toUpperCase();
+                risk.risk_level
+                    ? risk.risk_level.toUpperCase()
+                    : "COMPLETED";
 
-            // IMPORTANT:
-            // Use risk-high / risk-medium / risk-low
-            // instead of just high / medium / low.
 
             scanBadge.className =
-                `badge risk-${riskLevel}`;
+                "badge";
+
+
+            const level =
+                String(
+                    risk.risk_level || ""
+                ).toLowerCase();
+
+
+            if (level === "high") {
+
+                scanBadge.classList.add(
+                    "risk-high"
+                );
+
+            } else if (level === "medium") {
+
+                scanBadge.classList.add(
+                    "risk-medium"
+                );
+
+            } else if (level === "low") {
+
+                scanBadge.classList.add(
+                    "risk-low"
+                );
+            }
+        }
+
+
+        if (!results) {
+
+            return;
         }
 
 
         // -----------------------------------------------------
-        // RESULTS HTML
+        // Results HTML
         // -----------------------------------------------------
 
         results.innerHTML = `
 
             <div class="scan-summary">
 
-
-                <div>
+                <div class="summary-card">
 
                     <strong>
-                        Target
+                        Security Score
                     </strong>
 
                     <span>
                         ${escapeHTML(
-                            data.target
+                            risk.security_score ?? 0
+                        )}/100
+                    </span>
+
+                </div>
+
+
+                <div class="summary-card">
+
+                    <strong>
+                        Risk Level
+                    </strong>
+
+                    <span>
+                        ${escapeHTML(
+                            risk.risk_level ||
+                            "Unknown"
                         )}
                     </span>
 
                 </div>
 
 
-                <div>
-
-                    <strong>
-                        Scan Type
-                    </strong>
-
-                    <span>
-                        ${escapeHTML(
-                            getModeLabel(
-                                data.mode ||
-                                selectedScanMode
-                            )
-                        )}
-                    </span>
-
-                </div>
-
-
-                <div>
+                <div class="summary-card">
 
                     <strong>
                         Endpoints
@@ -540,7 +753,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 </div>
 
 
-                <div>
+                <div class="summary-card">
 
                     <strong>
                         Findings
@@ -552,12 +765,71 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 </div>
 
+            </div>
+
+
+            <!-- =============================================
+                 AUTOMATIC SCAN PROFILE
+            ============================================== -->
+
+            <div class="scan-profile-result">
+
+                <h3>
+                    ⚙️ Scan Profile
+                </h3>
+
+                <p>
+                    ${escapeHTML(
+                        getModeLabel(
+                            data.mode ||
+                            selectedScanMode
+                        )
+                    )} configuration was
+                    automatically applied.
+                </p>
+
+                <div class="profile-stats">
+
+                    <span>
+                        📄
+                        <strong>
+                            ${getScanProfile(
+                                data.mode ||
+                                selectedScanMode
+                            ).max_pages}
+                        </strong>
+                        Pages
+                    </span>
+
+                    <span>
+                        ⏱
+                        <strong>
+                            ${getScanProfile(
+                                data.mode ||
+                                selectedScanMode
+                            ).timeout}s
+                        </strong>
+                        Timeout
+                    </span>
+
+                    <span>
+                        🌐
+                        <strong>
+                            ${getScanProfile(
+                                data.mode ||
+                                selectedScanMode
+                            ).max_depth}
+                        </strong>
+                        Depth
+                    </span>
+
+                </div>
 
             </div>
 
 
             <!-- =============================================
-                 DISCOVERED ENDPOINTS
+                 ENDPOINTS
             ============================================== -->
 
             <div class="dashboard-endpoints">
@@ -574,7 +846,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             <!-- =============================================
-                 SECURITY FINDINGS
+                 FINDINGS
             ============================================== -->
 
             <div class="dashboard-findings">
@@ -620,13 +892,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
         // -----------------------------------------------------
-        // FULL SCAN REPORT BUTTON
+        // Full Report Button
         // -----------------------------------------------------
 
         if (data.scan_id) {
 
             const button =
-                document.createElement("a");
+                document.createElement(
+                    "a"
+                );
 
 
             button.href =
@@ -641,7 +915,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 "📄 View Full Scan Report";
 
 
-            results.appendChild(button);
+            results.appendChild(
+                button
+            );
         }
     }
 
@@ -652,12 +928,18 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function startScan() {
 
+        if (!targetUrl) {
+
+            return;
+        }
+
+
         const url =
             targetUrl.value.trim();
 
 
         // -----------------------------------------------------
-        // URL VALIDATION
+        // URL validation
         // -----------------------------------------------------
 
         if (!url) {
@@ -671,8 +953,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
         if (
-            !url.startsWith("http://") &&
-            !url.startsWith("https://")
+            !url.startsWith(
+                "http://"
+            ) &&
+            !url.startsWith(
+                "https://"
+            )
         ) {
 
             alert(
@@ -684,43 +970,60 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
         // -----------------------------------------------------
-        // START LOADING
+        // AUTOMATIC CONFIGURATION
+        // -----------------------------------------------------
+
+        const scanConfig =
+            getScanProfile(
+                selectedScanMode
+            );
+
+
+        // -----------------------------------------------------
+        // Loading
         // -----------------------------------------------------
 
         setLoading(true);
 
 
-        scanBadge.textContent =
-            "SCANNING";
+        if (scanBadge) {
+
+            scanBadge.textContent =
+                "SCANNING";
 
 
-        scanBadge.className =
-            "badge";
+            scanBadge.className =
+                "badge";
+        }
 
 
-        results.innerHTML = `
+        if (results) {
 
-            <div class="empty-state">
+            results.innerHTML = `
 
-                <div class="empty-icon">
-                    🧠
+                <div class="empty-state">
+
+                    <div class="empty-icon">
+                        🧠
+                    </div>
+
+                    <h3>
+                        ${escapeHTML(
+                            getModeLabel(
+                                selectedScanMode
+                            )
+                        )}
+                        Scan Running
+                    </h3>
+
+                    <p id="progressText">
+                        Initializing scanner...
+                    </p>
+
                 </div>
 
-                <h3>
-                    ${escapeHTML(
-                        getModeLabel(
-                            selectedScanMode
-                        )
-                    )} Scan Running
-                </h3>
-
-                <p id="progressText">
-                    Initializing scanner...
-                </p>
-
-            </div>
-
-        `;
+            `;
+        }
 
 
         const progress =
@@ -732,7 +1035,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
 
             // -------------------------------------------------
-            // VALIDATION
+            // Validation
             // -------------------------------------------------
 
             showStatus(
@@ -748,7 +1051,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             // -------------------------------------------------
-            // CRAWLING
+            // Crawling
             // -------------------------------------------------
 
             showStatus(
@@ -759,12 +1062,12 @@ document.addEventListener("DOMContentLoaded", () => {
             if (progress) {
 
                 progress.textContent =
-                    "✓ Crawling endpoints";
+                    `✓ Crawling endpoints (max ${scanConfig.max_pages} pages)`;
             }
 
 
             // -------------------------------------------------
-            // PARAMETER DISCOVERY
+            // Parameter discovery
             // -------------------------------------------------
 
             showStatus(
@@ -795,15 +1098,36 @@ document.addEventListener("DOMContentLoaded", () => {
                         },
 
                         body: JSON.stringify({
+
                             url: url,
-                            mode: selectedScanMode
+
+                            // Only the scan mode is
+                            // selected by the user.
+                            mode:
+                                selectedScanMode
                         })
                     }
                 );
 
 
-            const data =
-                await response.json();
+            // -------------------------------------------------
+            // Parse response
+            // -------------------------------------------------
+
+            let data;
+
+
+            try {
+
+                data =
+                    await response.json();
+
+            } catch (parseError) {
+
+                throw new Error(
+                    "Server returned an invalid response."
+                );
+            }
 
 
             if (
@@ -819,7 +1143,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
             // -------------------------------------------------
-            // ANALYSIS
+            // Analysis
             // -------------------------------------------------
 
             showStatus(
@@ -827,17 +1151,32 @@ document.addEventListener("DOMContentLoaded", () => {
             );
 
 
+            if (progress) {
+
+                progress.textContent =
+                    "✓ Scan completed — analyzing findings";
+            }
+
+
             // -------------------------------------------------
-            // DISPLAY RESULTS
+            // Render results
             // -------------------------------------------------
 
-            renderResults(data);
+            renderResults(
+                data
+            );
 
 
-            // Update total scan count
+            // -------------------------------------------------
+            // History
+            // -------------------------------------------------
 
             await loadHistoryStats();
 
+
+            // -------------------------------------------------
+            // Completed
+            // -------------------------------------------------
 
             showStatus(
                 `${getModeLabel(
@@ -848,42 +1187,47 @@ document.addEventListener("DOMContentLoaded", () => {
 
         } catch (error) {
 
-            console.error(error);
+            console.error(
+                "WebGuard scan error:",
+                error
+            );
 
 
-            // -------------------------------------------------
-            // FAILED SCAN
-            // -------------------------------------------------
+            if (scanBadge) {
 
-            scanBadge.textContent =
-                "FAILED";
+                scanBadge.textContent =
+                    "FAILED";
 
 
-            scanBadge.className =
-                "badge risk-high";
+                scanBadge.className =
+                    "badge risk-high";
+            }
 
 
-            results.innerHTML = `
+            if (results) {
 
-                <div class="empty-state">
+                results.innerHTML = `
 
-                    <div class="empty-icon">
-                        ❌
+                    <div class="empty-state">
+
+                        <div class="empty-icon">
+                            ❌
+                        </div>
+
+                        <h3>
+                            Scan Failed
+                        </h3>
+
+                        <p>
+                            ${escapeHTML(
+                                error.message
+                            )}
+                        </p>
+
                     </div>
 
-                    <h3>
-                        Scan Failed
-                    </h3>
-
-                    <p>
-                        ${escapeHTML(
-                            error.message
-                        )}
-                    </p>
-
-                </div>
-
-            `;
+                `;
+            }
 
 
             showStatus(
@@ -902,85 +1246,104 @@ document.addEventListener("DOMContentLoaded", () => {
     // SCAN MODE EVENTS
     // =========================================================
 
-    scanModeOptions.forEach(option => {
+    scanModeOptions.forEach(
+        option => {
 
-        option.addEventListener(
-            "click",
-            () => {
+            option.addEventListener(
+                "click",
+                () => {
 
-                if (
-                    scanButton &&
-                    scanButton.disabled
-                ) {
-                    return;
-                }
-
-                setSelectedMode(
-                    option.dataset.mode
-                );
-            }
-        );
-
-
-        option.addEventListener(
-            "keydown",
-            event => {
-
-                if (
-                    (
-                        event.key === "Enter" ||
-                        event.key === " "
-                    ) &&
-                    !(
+                    if (
                         scanButton &&
                         scanButton.disabled
-                    )
-                ) {
+                    ) {
 
-                    event.preventDefault();
+                        return;
+                    }
+
 
                     setSelectedMode(
                         option.dataset.mode
                     );
                 }
-
-            }
-        );
-
-    });
+            );
 
 
-    // =========================================================
-    // EVENTS
-    // =========================================================
+            option.addEventListener(
+                "keydown",
+                event => {
 
-    scanButton.addEventListener(
-        "click",
-        startScan
-    );
+                    if (
+                        (
+                            event.key === "Enter" ||
+                            event.key === " "
+                        ) &&
+                        !(
+                            scanButton &&
+                            scanButton.disabled
+                        )
+                    ) {
+
+                        event.preventDefault();
 
 
-    targetUrl.addEventListener(
-        "keydown",
-        event => {
-
-            if (
-                event.key === "Enter" &&
-                !scanButton.disabled
-            ) {
-
-                startScan();
-            }
+                        setSelectedMode(
+                            option.dataset.mode
+                        );
+                    }
+                }
+            );
 
         }
     );
 
 
     // =========================================================
-    // INITIAL DASHBOARD
+    // BUTTON EVENT
     // =========================================================
 
-    setSelectedMode("standard");
+    if (scanButton) {
+
+        scanButton.addEventListener(
+            "click",
+            startScan
+        );
+    }
+
+
+    // =========================================================
+    // ENTER KEY
+    // =========================================================
+
+    if (targetUrl) {
+
+        targetUrl.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.key === "Enter" &&
+                    !(
+                        scanButton &&
+                        scanButton.disabled
+                    )
+                ) {
+
+                    startScan();
+                }
+            }
+        );
+    }
+
+
+    // =========================================================
+    // INITIALIZE
+    // =========================================================
+
+    setSelectedMode(
+        "standard"
+    );
+
 
     loadHistoryStats();
 
