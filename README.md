@@ -1,779 +1,291 @@
-# WebGuard
+<div align="center">
 
-<p align="center">
-  <strong>Web Application Vulnerability Scanner</strong><br>
-  <sub>Crawl · Discover · Test · Analyze · Score · Report</sub>
-</p>
+# 🛡️ WebGuard
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.x-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python">
-  <img src="https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask&logoColor=white" alt="Flask">
-  <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite">
-  <img src="https://img.shields.io/badge/Security-Application%20Testing-8B5CF6?style=flat-square" alt="Security Testing">
-  <img src="https://img.shields.io/badge/Status-Active-22C55E?style=flat-square" alt="Status">
-</p>
+**A self-hosted web application vulnerability scanner, built from scratch in Python & Flask.**
 
----
+Crawl a target, run a full battery of active/passive security checks, score the risk, and walk away with a client-ready PDF report — all from your own dashboard, on your own infrastructure.
 
-## What is WebGuard?
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=flat-square&logo=python&logoColor=white)](#)
+[![Flask](https://img.shields.io/badge/Flask-3.x-000000?style=flat-square&logo=flask&logoColor=white)](#)
+[![SQLite](https://img.shields.io/badge/Database-SQLite-07405E?style=flat-square&logo=sqlite&logoColor=white)](#)
+[![Status](https://img.shields.io/badge/status-active--development-yellow?style=flat-square)](#)
+[![Made for authorized testing](https://img.shields.io/badge/use-authorized%20testing%20only-critical?style=flat-square)](#-responsible-use)
 
-**WebGuard** is a Python/Flask-based web application vulnerability scanner designed to help security testers discover, analyze, and document common web security issues in authorized testing environments.
-
-Instead of treating a scan as a simple list of URLs and alerts, WebGuard follows a security-assessment workflow:
-
-```text
-Target
-  │
-  ▼
-Crawler
-  │
-  ▼
-Endpoint Discovery
-  │
-  ▼
-Security Tests
-  │
-  ▼
-Finding Normalization & Deduplication
-  │
-  ▼
-Risk Analysis
-  │
-  ├── Security Score
-  ├── Risk Level
-  ├── Finding Breakdown
-  └── Top Risks
-  │
-  ▼
-History / Comparison / Report
-```
-
-The project was developed as an **MCA cybersecurity project** with a focus on practical web application security testing and a usable security-assessment workflow.
+</div>
 
 ---
 
 ## Why WebGuard?
 
-Security scanners can produce a large amount of raw information. WebGuard is designed to turn that information into something easier to understand:
+Most "toy" vulnerability scanners either stop at a header check or require standing up Burp/ZAP with a mountain of config. WebGuard sits in between: a lightweight Flask app with a real crawler, a modular check engine covering the classes of bugs that actually show up in bug bounty and pentest reports, background job processing so scans don't block the UI, and scan history you can diff over time to prove regressions got fixed.
 
-- Discover application endpoints automatically.
-- Run multiple categories of security checks.
-- Separate confirmed findings from potential issues and misconfigurations.
-- Deduplicate repeated findings.
-- Calculate an overall security score and risk level.
-- Keep historical scan results.
-- Compare scans for regression testing.
-- Run scans as background jobs with progress tracking.
-- Generate professional PDF security reports.
-
-The goal is not simply:
-
-> **"Something looks vulnerable."**
-
-It is:
-
-> **"Here is what was tested, what was found, how significant it is, where it occurs, and what should be reviewed next."**
+It's built to be read, not just run — every check lives in its own file under `scanner/`, so adding a new detector is a matter of writing one function and registering it.
 
 ---
 
-# ✨ Features
+## Table of Contents
 
-## 🔎 Web Application Scanning
+- [Features](#-features)
+- [How a Scan Works](#-how-a-scan-works)
+- [Scan Modes](#-scan-modes)
+- [Tech Stack](#-tech-stack)
+- [Project Structure](#-project-structure)
+- [Getting Started](#-getting-started)
+- [Configuration](#-configuration)
+- [API Overview](#-api-overview)
+- [Roadmap](#-roadmap)
+- [Responsible Use](#-responsible-use)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-WebGuard includes checks for common web application security weaknesses and security configuration issues.
+---
 
-### Vulnerability & Security Checks
+## ✨ Features
 
-| Category | Capability |
+### 🔍 Detection Engine
+A dedicated module per vulnerability class, all feeding into a shared findings/risk pipeline:
+
+| Category | Checks |
 |---|---|
-| SQL Injection | Detects SQL injection indicators and database errors |
-| Reflected XSS | Tests parameters for reflected script injection |
-| CSRF | Checks for missing anti-CSRF protections |
-| SSRF | Tests controlled server-side request behavior |
-| XXE | Checks XML entity processing behavior |
-| Open Redirect | Detects potentially unsafe redirects |
-| Security Headers | Reviews important HTTP security headers |
-| Cookie Security | Checks cookie security attributes |
-| CORS | Reviews cross-origin configuration |
-| HTTP Methods | Checks exposed/unsafe HTTP methods |
-| Sensitive Files | Looks for commonly exposed sensitive resources |
-| Endpoint Exposure | Identifies potentially exposed application functionality |
-| Information Disclosure | Detects useful information unintentionally exposed by the application |
-| Transport Security | Reviews HTTPS/security-related transport configuration |
+| **Injection** | SQL Injection, XML External Entity (XXE) |
+| **Cross-Site Scripting** | Reflected XSS |
+| **Access & Trust** | CORS misconfiguration, CSRF protection, Open Redirect, SSRF |
+| **Transport & Config** | Missing/weak security headers, cookie flags (`Secure`, `HttpOnly`, `SameSite`), insecure HTTP methods, TLS/transport checks |
+| **Recon & Disclosure** | Information disclosure (server banners, stack traces), sensitive file exposure (`.env`, `.git`, backups), endpoint exposure via `robots.txt` / sitemaps |
+| **Auth Surface** | Login form and authentication security checks |
 
-> WebGuard is intended for **authorized security testing only**.
+### 🕷️ Smart Crawling
+A bounded, same-origin crawler discovers pages and parameters up to a configurable depth and page limit before the scanner touches a single endpoint.
+
+### ⚙️ Configurable Scan Modes
+Choose **Passive**, **Standard**, or **Active** scanning — trading crawl depth and probe aggressiveness for speed and safety. See [Scan Modes](#-scan-modes).
+
+### 🧵 Background Job Queue
+Scans run on a thread-pool worker, not the request thread. Kick off a scan, get a `job_id` immediately, and poll (or refresh the page) for live progress — nothing times out on a slow target.
+
+### 📊 Risk Scoring
+Findings are deduplicated and rolled into a single explainable **Security Score** (0–100) and risk level, so you can track "is this app actually getting safer" instead of just counting raw alerts.
+
+### 📈 History, Diffing & Reporting
+- Every scan is persisted to SQLite with its full finding set.
+- The **Compare** view diffs two scans: what got fixed, what's new, what changed severity.
+- One click exports a professional, multi-page **PDF security assessment** (cover page, executive summary, severity breakdown, per-finding evidence and remediation) via ReportLab.
+
+### 🖥️ Built-in Dashboard
+A dark, security-console-styled UI (no JS framework, no build step) for launching scans, watching live progress, browsing history, and reading reports — served straight from Flask templates.
 
 ---
 
-# 🎯 Scan Modes
+## 🔄 How a Scan Works
 
-WebGuard provides three scan profiles:
+```
+   POST /api/scan
+        │
+        ▼
+ ┌─────────────┐     ┌──────────────┐     ┌──────────────────┐
+ │   Crawler   │────▶│  Vulnerability│────▶│   Dedup + Risk    │
+ │ (discovery) │     │    Modules    │     │     Engine        │
+ └─────────────┘     └──────────────┘     └──────────────────┘
+        │                                          │
+        ▼                                          ▼
+  endpoints found                          security_score, risk_level
+                                                     │
+                                                     ▼
+                                          saved to SQLite → dashboard,
+                                          history, compare, PDF export
+```
 
-| Mode | Max Pages | Timeout | Crawl Depth | Intended Use |
+1. You submit a target URL and a scan mode.
+2. The request returns instantly with a `job_id` — the scan itself runs in the background.
+3. The crawler discovers endpoints (bounded by mode-specific max pages / depth).
+4. Every discovered endpoint is run through the full check suite.
+5. Findings are deduplicated, scored, and written to the database.
+6. The dashboard polls job status and renders results the moment the scan completes.
+
+---
+
+## ⚙️ Scan Modes
+
+| Mode | Max Pages | Timeout | Crawl Depth | Best for |
 |---|---:|---:|---:|---|
-| `passive` | 10 | 5s | 1 | Lower-impact inspection |
-| `standard` | 20 | 10s | 2 | Normal security assessment |
-| `active` | 50 | 15s | 3 | Deeper controlled testing |
+| `passive` | 10 | 5s | 1 | Quick, low-impact reconnaissance |
+| `standard` | 20 | 10s | 2 | Default — balanced coverage and speed |
+| `active` | 50 | 15s | 3 | Deep, authorized assessments |
 
-The application exposes the currently configured profiles through:
-
-```http
-GET /api/scan/modes
-```
-
-The server-side configuration remains the source of truth.
+> The live, authoritative configuration for your instance is always available at `GET /api/scan/modes`.
 
 ---
 
-# 🧠 Risk Engine
+## 🧰 Tech Stack
 
-One of WebGuard's core components is its risk-analysis layer.
-
-Findings are not treated equally. The risk engine considers factors such as:
-
-- Severity
-- Finding category
-- Confidence
-- Exploitability
-- Repeated findings affecting the same endpoint
-- Vulnerability type
-
-The engine produces information including:
-
-```text
-Risk Points
-Security Score
-Overall Risk Level
-Finding Breakdown
-Top Risks
-Confidence Counts
-```
-
-### Security Score
-
-WebGuard represents the security score on a:
-
-```text
-0 ─────────────────────────────── 100
-```
-
-scale, where a higher score represents a stronger security posture.
-
-The scanner also distinguishes between classifications such as:
-
-```text
-Confirmed Vulnerability
-Potential Vulnerability
-Security Misconfiguration
-Informational
-```
-
-This helps avoid treating every scanner observation as a confirmed exploitable vulnerability.
+| Layer | Technology |
+|---|---|
+| Backend | Python 3, Flask |
+| Scanning | `requests`, `BeautifulSoup4` |
+| Background jobs | `concurrent.futures.ThreadPoolExecutor` |
+| Storage | SQLite |
+| Reporting | ReportLab (PDF generation) |
+| Auth (scaffolded) | `python-jose` (JWT), `werkzeug.security` |
+| Frontend | Vanilla HTML / CSS / JS — no framework, no build step |
 
 ---
 
-# ⚙️ Background Scanning
+## 📁 Project Structure
 
-Longer scans are handled through a lightweight background job system.
-
-Instead of keeping the browser request waiting for the complete scan:
-
-```text
-POST /api/scan
-       │
-       ▼
-   Create Job
-       │
-       ▼
-   Background Worker
-       │
-       ├── Discovery
-       ├── Crawling
-       ├── Scanning
-       ├── Analysis
-       ├── Risk Calculation
-       └── Database Storage
-       │
-       ▼
-   Completed Scan
 ```
-
-Jobs expose progress information such as:
-
-```text
-Queued
-Discovery
-Scanning
-Analysis
-Risk Analysis
-Saving
-Completed
-```
-
-The frontend can reconnect to an active job after a browser refresh using the stored job identifier.
-
-### Important
-
-The current implementation uses an in-process worker pool. It is designed for the project's local/single-instance use case and is **not a distributed task queue**.
-
----
-
-# 🗂️ Scan History
-
-Completed assessments are stored in SQLite.
-
-The history system allows you to review:
-
-- Target
-- Scan mode
-- Number of endpoints
-- Findings
-- Risk level
-- Security score
-- Scan details
-
-This makes WebGuard useful for repeated testing rather than only one-off scans.
-
----
-
-# 🔁 Scan Comparison
-
-WebGuard includes scan-to-scan comparison.
-
-You can compare a baseline scan with a newer scan and identify:
-
-```text
-Fixed Findings
-New Findings
-Severity Changes
-Unchanged Findings
-Added Endpoints
-Removed Endpoints
-Score Changes
-Risk Changes
-```
-
-This makes the scanner useful for basic **security regression testing**.
-
-Example:
-
-```text
-Baseline Scan
-     │
-     ▼
-Fix Application
-     │
-     ▼
-Run New Scan
-     │
-     ▼
-Compare
-     │
-     ├── Fixed
-     ├── New
-     ├── Severity Changed
-     └── Unchanged
-```
-
----
-
-# 📄 Security Reports
-
-WebGuard can generate a professional PDF report for a completed scan.
-
-The report can contain:
-
-- WebGuard branding
-- Target information
-- Scan metadata
-- Security score
-- Overall risk level
-- Finding counts
-- High/Critical counts
-- Severity distribution
-- Finding classifications
-- Endpoint inventory
-- Detailed findings
-- CWE mappings
-- OWASP mappings
-- Confidence
-- Verification status
-- Affected endpoint
-- Parameter
-- HTTP method
-- Test mode
-- Evidence/detection details
-- Impact
-- Remediation recommendations
-- Page numbers and report footer
-
-API endpoint:
-
-```http
-GET /api/reports/{scan_id}/pdf
-```
-
----
-
-# 🌐 REST API
-
-WebGuard exposes a REST API for integrating the scanner with other applications.
-
-### Main Endpoints
-
-| Method | Endpoint | Purpose |
-|---|---|---|
-| `POST` | `/api/scan` | Queue a security scan |
-| `GET` | `/api/scan/modes` | Get scan modes/configuration |
-| `GET` | `/api/scan/jobs/{job_id}` | Get scan-job status |
-| `GET` | `/api/scan/jobs` | Get active jobs |
-| `GET` | `/api/history` | Get scan history |
-| `GET` | `/api/history/{scan_id}` | Get scan details |
-| `GET` | `/api/compare` | Compare two scans |
-| `GET` | `/api/reports/{scan_id}/pdf` | Generate PDF report |
-
-Interactive API documentation is available when enabled:
-
-```text
-/api/docs
-/api/redoc
-/api/openapi.json
-```
-
----
-
-# 🧪 Example API Workflow
-
-```text
-GET /api/scan/modes
-        │
-        ▼
-POST /api/scan
-        │
-        ▼
-Receive job_id
-        │
-        ▼
-GET /api/scan/jobs/{job_id}
-        │
-        ▼
-Poll until completed
-        │
-        ▼
-Receive scan_id
-        │
-        ▼
-GET /api/history/{scan_id}
-        │
-        ├───────────────┐
-        ▼               ▼
-Review Findings     Generate PDF
-        │
-        ▼
-Compare With Future Scan
-```
-
----
-
-# 🏗️ Architecture
-
-At a high level, WebGuard is organized into several layers:
-
-```text
-┌─────────────────────────────────────────────┐
-│                 Web Interface               │
-│       Dashboard / History / Reports         │
-└──────────────────────┬──────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────┐
-│                  Flask API                  │
-│     Scan / Jobs / History / Compare / PDF  │
-└──────────────────────┬──────────────────────┘
-                       │
-          ┌────────────┴────────────┐
-          ▼                         ▼
-┌───────────────────┐     ┌───────────────────┐
-│  Background Jobs  │     │      Crawler      │
-└─────────┬─────────┘     └─────────┬─────────┘
-          │                         │
-          └────────────┬────────────┘
-                       ▼
-              ┌──────────────────┐
-              │ Security Scanner │
-              │ Modules / Tests  │
-              └────────┬─────────┘
-                       ▼
-              ┌──────────────────┐
-              │ Finding Pipeline │
-              │ Normalize/Dedup  │
-              └────────┬─────────┘
-                       ▼
-              ┌──────────────────┐
-              │   Risk Engine    │
-              └────────┬─────────┘
-                       ▼
-              ┌──────────────────┐
-              │      SQLite      │
-              │ History / Jobs   │
-              └──────────────────┘
-```
-
----
-
-# 📁 Project Structure
-
-A simplified view of the project:
-
-```text
-WebGuard/
-│
-├── app.py
-├── database.py
-├── jobs_module.py
-├── requirements.txt
-│
+Webguard/
+├── app.py                  # Flask routes, background scan orchestration, PDF export
+├── auth.py                 # JWT/password-hash auth helpers
+├── database.py              # SQLite schema + data access layer
+├── jobs_module.py           # Thread-pool background job runner
+├── docs/
+│   └── Api Documentation.md # Full REST API reference
 ├── scanner/
-│   ├── scanner.py
-│   ├── crawler.py
-│   ├── parameters.py
-│   ├── dedup.py
-│   ├── risk.py
-│   └── ...
-│
-├── templates/
-│   ├── index.html
-│   ├── history.html
-│   ├── reports.html
-│   ├── compare.html
-│   └── scan_details.html
-│
+│   ├── scanner.py            # Scan orchestration, modes, config
+│   ├── crawler.py            # Bounded same-origin crawler
+│   ├── risk.py                # Scoring / risk engine
+│   ├── dedup.py               # Finding deduplication
+│   ├── sqli.py, xss.py, csrf.py, cors.py, ssrf.py, xxe.py
+│   ├── headers.py, cookies.py, transport.py, methods.py
+│   ├── disclosure.py, sensitive.py, endpoint_exposure.py
+│   ├── redirect.py, parameters.py, auth.py
+├── templates/                # Dashboard, history, reports, compare, scan detail pages
 ├── static/
-│   ├── style.css
-│   └── app.js
-│
-└── webguard.db
+│   ├── css/style.css
+│   └── js/app.js
+└── webguard.db               # SQLite database (created on first run)
 ```
 
-> The exact file list can evolve as the project develops.
-
 ---
 
-# 🛠️ Tech Stack
+## 🚀 Getting Started
 
-### Backend
+### Prerequisites
+- Python 3.10+
+- pip
 
-- **Python**
-- **Flask**
-
-### Security Engine
-
-- Custom Python vulnerability checks
-- Web crawler
-- Parameter discovery
-- Finding normalization
-- Finding deduplication
-- Risk calculation
-
-### Database
-
-- **SQLite**
-
-### Frontend
-
-- HTML
-- CSS
-- JavaScript
-
-### Reporting
-
-- PDF report generation
-
-### Development / Testing
-
-- Burp Suite
-- Local vulnerable applications
-- Controlled security-testing environments
-
----
-
-# 🚀 Getting Started
-
-## 1. Clone the repository
-
+### 1. Clone & enter the project
 ```bash
-git clone https://github.com/<your-username>/WebGuard.git
-cd WebGuard
+git clone https://github.com/<your-username>/webguard.git
+cd webguard
 ```
 
-## 2. Create a virtual environment
-
-### Windows
-
-```powershell
+### 2. Create a virtual environment
+```bash
 python -m venv venv
-```
-
-Activate it:
-
-```powershell
+# Windows
 venv\Scripts\activate
-```
-
-### Linux / macOS
-
-```bash
-python3 -m venv venv
+# macOS / Linux
 source venv/bin/activate
 ```
 
----
-
-## 3. Install dependencies
-
+### 3. Install dependencies
+Create a `requirements.txt` (not yet included) with:
+```
+flask
+requests
+beautifulsoup4
+python-dotenv
+python-jose[cryptography]
+reportlab
+```
+then:
 ```bash
 pip install -r requirements.txt
 ```
 
----
-
-## 4. Start WebGuard
-
+### 4. Configure environment variables
+See [Configuration](#-configuration) below, then run:
 ```bash
 python app.py
 ```
 
-The default local address is:
-
-```text
-http://127.0.0.1:5000
-```
-
-Open it in your browser.
+### 5. Open the dashboard
+Visit **http://127.0.0.1:5000**, drop in a target URL you're authorized to test, pick a scan mode, and hit scan.
 
 ---
 
-# 🧪 Testing WebGuard
+## 🔧 Configuration
 
-For development and demonstration, use a deliberately vulnerable application or another application that you own/have explicit authorization to test.
+WebGuard reads its settings from a `.env` file in the project root:
 
-A local test target can be run separately, for example:
-
-```text
-http://127.0.0.1:5001
+```env
+JWT_SECRET=replace-with-a-long-random-secret
+ACCESS_TOKEN_EXPIRE_MINUTES=60
 ```
 
-Then enter the target into WebGuard:
-
-```text
-http://127.0.0.1:5001
-```
-
-Select:
-
-```text
-Passive
-Standard
-Active
-```
-
-and start the scan.
+> ⚠️ **Never commit your real `.env` file.** Add it to `.gitignore` and generate a fresh, random `JWT_SECRET` for every environment (e.g. `python -c "import secrets; print(secrets.token_urlsafe(48))"`).
 
 ---
 
-# 🔐 Security & Responsible Use
+## 🔌 API Overview
 
-WebGuard is a **security testing tool**.
+WebGuard is fully API-driven — the dashboard is just a client of it. Full request/response schemas live in [`docs/Api Documentation.md`](docs/Api%20Documentation.md).
 
-Only scan:
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/scan` | Queue a new background scan (returns a `job_id`) |
+| `GET` | `/api/scan/jobs/<job_id>` | Poll job status / progress |
+| `GET` | `/api/scan/jobs` | List active (queued/running) jobs |
+| `GET` | `/api/scan/modes` | Get available scan modes and their configuration |
+| `GET` | `/api/history` | List all past scans |
+| `GET` | `/api/history/<scan_id>` | Full detail for one scan |
+| `GET` | `/api/compare?baseline=<id>&current=<id>` | Diff two scans |
+| `GET` | `/api/reports/<scan_id>/pdf` | Download a PDF security report |
 
-- Applications you own
-- Applications where you have explicit authorization
-- Dedicated security-testing environments
-- Intentionally vulnerable labs
-
-Do **not** use WebGuard to scan third-party systems without permission.
-
-The scanner's results should also be treated as assessment evidence rather than absolute proof. Security findings should be manually validated where appropriate.
-
----
-
-# ⚠️ GitHub Security Hygiene
-
-Do **not** commit local/generated files such as:
-
-```text
-venv/
-.venv/
-__pycache__/
-*.pyc
-.env
-webguard.db
-*.log
-```
-
-A recommended `.gitignore`:
-
-```gitignore
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-
-# Virtual environments
-venv/
-.venv/
-env/
-
-# Environment / secrets
-.env
-.env.*
-
-# Local database
-webguard.db
-*.db
-*.sqlite
-*.sqlite3
-
-# Logs
-*.log
-
-# IDE
-.vscode/
-.idea/
-
-# OS
-.DS_Store
-Thumbs.db
-```
-
-Never commit passwords, API keys, JWT secrets, database credentials, or other private configuration.
-
----
-
-# 🗺️ Roadmap
-
-The project is being developed toward a more complete security-assessment platform.
-
-### Current / Completed Areas
-
-- [x] Web vulnerability scanning
-- [x] Security header analysis
-- [x] Cookie security checks
-- [x] CORS analysis
-- [x] SQL injection checks
-- [x] Reflected XSS checks
-- [x] CSRF checks
-- [x] SSRF checks
-- [x] XXE checks
-- [x] Open redirect checks
-- [x] Sensitive file / endpoint checks
-- [x] Crawler
-- [x] Parameter discovery
-- [x] Finding deduplication
-- [x] Risk engine
-- [x] Security scoring
-- [x] Passive / Standard / Active modes
-- [x] Scan configuration
-- [x] Scan history
-- [x] Background scan jobs
-- [x] Scan comparison
-- [x] Security report generation
-- [x] PDF report export
-- [x] REST API
-- [x] API documentation
-
-### Planned / Future
-
-- [ ] Finding-level retest/rescan
-- [ ] Advanced target validation and scope control
-- [ ] Further UI/UX refinement
-- [ ] Expanded test coverage
-- [ ] More robust deployment architecture
-- [ ] Docker / Docker Compose deployment
-- [ ] Scheduled scans
-- [ ] API authentication and authorization
-- [ ] Rate limiting
-- [ ] Webhook notifications
-
----
-
-# 📸 Screenshots
-
-Add your project screenshots here once you have the final UI captures.
-
-Suggested screenshots:
-
-```text
-Dashboard
-Scan in Progress
-Scan Results
-Finding Details
-Scan History
-Scan Comparison
-Security Report
-API Documentation
-```
-
-Example Markdown:
-
-```markdown
-![WebGuard Dashboard](screenshots/dashboard.png)
+Quick example:
+```bash
+curl -X POST http://127.0.0.1:5000/api/scan \
+  -H "Content-Type: application/json" \
+  -d '{"url": "http://127.0.0.1:5001", "mode": "standard"}'
 ```
 
 ---
 
-# 🎓 Project Context
+## 🗺️ Roadmap
 
-**WebGuard** was developed as an **MCA cybersecurity project** to explore practical web application security testing.
-
-The project combines concepts from:
-
-- Web application security
-- Vulnerability assessment
-- Ethical hacking
-- Web crawling
-- Security automation
-- Risk analysis
-- Secure software development
-- REST API development
-- Security reporting
-
-Rather than implementing a single vulnerability check, the project brings these components together into one assessment workflow.
+- [ ] Wire up the JWT authentication layer (`auth.py`) to protect scan/report routes
+- [ ] Multi-user support with per-user scan history
+- [ ] Authenticated / session-based scanning (crawl behind a login)
+- [ ] Rate limiting and scan scheduling
+- [ ] CI-friendly CLI mode for pipeline security gates
+- [ ] `requirements.txt` + Docker Compose for one-command setup
 
 ---
 
-# 👨‍💻 Author
+## 🛡️ Responsible Use
 
-**Sarang Soman**
+WebGuard performs **active security testing**, including requests designed to trigger and confirm vulnerabilities. Only run it against:
 
-MCA | Cybersecurity
+- Applications you own, or
+- Targets you have **explicit, documented authorization** to test.
 
-Interested in:
-
-```text
-Cybersecurity
-Ethical Hacking
-Web Application Security
-Security Automation
-Python
-```
+Scanning systems without permission may be illegal in your jurisdiction. The maintainers assume no liability for misuse.
 
 ---
 
-# 📜 License
+## 🤝 Contributing
 
-Add your preferred license before publishing the repository.
+Contributions, new detector modules, and bug reports are welcome.
 
-For example:
+1. Fork the repo
+2. Create a feature branch (`git checkout -b feature/new-check`)
+3. Commit your changes
+4. Open a pull request
 
-```text
-MIT License
-```
+A new vulnerability check is typically just a new file in `scanner/` exposing a `check_*()` function, registered in `scanner/scanner.py`.
 
 ---
 
-<p align="center">
-  <strong>WebGuard</strong><br>
-  <sub>Find it. Understand it. Fix it.</sub>
-</p>
+## 📄 License
+
+No license has been set for this repository yet. Until one is added, all rights are reserved by the author — consider adding an [MIT](https://choosealicense.com/licenses/mit/) or similar open-source license if you intend for others to use or contribute to this project.
+
+---
+
+<div align="center">
+
+Built as a hands-on exploration of how web vulnerability scanners actually work, end to end.
+
+</div>
