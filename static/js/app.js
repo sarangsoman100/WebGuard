@@ -96,6 +96,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     let selectedScanMode = "standard";
 
+    const ACTIVE_JOB_KEY =
+        "webguard_active_scan_job";
 
     // =========================================================
     // UTILITY FUNCTIONS
@@ -926,76 +928,594 @@ document.addEventListener("DOMContentLoaded", () => {
     // START SCAN
     // =========================================================
 
-    async function startScan() {
+    // =========================================================
+// BACKGROUND SCAN JOB
+// =========================================================
 
-        if (!targetUrl) {
+async function fetchJobStatus(jobId) {
 
-            return;
-        }
+    const response = await fetch(
+        `/api/scan/jobs/${jobId}?_=${Date.now()}`
+    );
+
+    let data;
+
+    try {
+
+        data = await response.json();
+
+    } catch (error) {
+
+        throw new Error(
+            "Server returned an invalid job response."
+        );
+    }
+
+    if (
+        !response.ok ||
+        !data.success
+    ) {
+
+        throw new Error(
+            data.error ||
+            "Unable to read scan job status."
+        );
+    }
+
+    return data;
+}
 
 
-        const url =
-            targetUrl.value.trim();
+// =========================================================
+// RENDER JOB PROGRESS
+// =========================================================
+
+function renderJobProgress(job) {
+
+    if (!results) {
+        return;
+    }
+
+    const progress =
+        Number(
+            job.progress || 0
+        );
+
+    const stage =
+        job.stage ||
+        "Working";
+
+    const message =
+        job.message ||
+        "Processing scan...";
+
+    const status =
+        String(
+            job.status ||
+            "running"
+        );
+
+    const displayStatus =
+        status.charAt(0).toUpperCase()
+        +
+        status.slice(1);
+
+    results.innerHTML = `
+
+        <div
+            class="empty-state"
+            style="
+                max-width:720px;
+                margin:0 auto;
+            "
+        >
+
+            <div class="empty-icon">
+                🧠
+            </div>
+
+            <h3>
+                ${escapeHTML(
+                    getModeLabel(
+                        job.mode
+                    )
+                )}
+                Scan
+                ${escapeHTML(
+                    displayStatus
+                )}
+            </h3>
+
+            <p>
+                ${escapeHTML(stage)}
+                —
+                ${escapeHTML(message)}
+            </p>
+
+            <div
+                style="
+                    margin:24px auto 8px;
+                    width:min(100%,560px);
+                    height:10px;
+                    background:rgba(255,255,255,.10);
+                    border-radius:999px;
+                    overflow:hidden;
+                "
+            >
+
+                <div
+                    style="
+                        width:${Math.max(
+                            0,
+                            Math.min(
+                                100,
+                                progress
+                            )
+                        )}%;
+                        height:100%;
+                        background:currentColor;
+                        transition:width .35s ease;
+                    "
+                ></div>
+
+            </div>
+
+            <strong>
+                ${progress}%
+            </strong>
+
+            <p
+                style="
+                    opacity:.7;
+                    margin-top:10px;
+                "
+            >
+                Job #${escapeHTML(job.id)}
+                ·
+                The scan is running in
+                the background.
+            </p>
+
+        </div>
+    `;
+}
 
 
-        // -----------------------------------------------------
-        // URL validation
-        // -----------------------------------------------------
+// =========================================================
+// MONITOR BACKGROUND JOB
+// =========================================================
 
-        if (!url) {
+async function monitorScanJob(jobId) {
 
-            alert(
-                "Enter a target URL."
+    localStorage.setItem(
+        ACTIVE_JOB_KEY,
+        String(jobId)
+    );
+
+    while (true) {
+
+        const data =
+            await fetchJobStatus(
+                jobId
             );
 
-            return;
-        }
+        const job =
+            data.job || {};
 
+        renderJobProgress(
+            job
+        );
 
-        if (
-            !url.startsWith(
-                "http://"
-            ) &&
-            !url.startsWith(
-                "https://"
-            )
-        ) {
-
-            alert(
-                "URL must start with http:// or https://"
-            );
-
-            return;
-        }
-
-
-        // -----------------------------------------------------
-        // AUTOMATIC CONFIGURATION
-        // -----------------------------------------------------
-
-        const scanConfig =
-            getScanProfile(
-                selectedScanMode
-            );
-
-
-        // -----------------------------------------------------
-        // Loading
-        // -----------------------------------------------------
-
-        setLoading(true);
-
+        // ----------------------------------------------------
+        // Badge
+        // ----------------------------------------------------
 
         if (scanBadge) {
 
             scanBadge.textContent =
-                "SCANNING";
-
+                String(
+                    job.status ||
+                    "RUNNING"
+                ).toUpperCase();
 
             scanBadge.className =
                 "badge";
+
+            if (
+                job.status === "failed"
+            ) {
+
+                scanBadge.classList.add(
+                    "risk-high"
+                );
+            }
         }
 
+        // ----------------------------------------------------
+        // Completed
+        // ----------------------------------------------------
+
+        if (
+            job.status ===
+            "completed"
+        ) {
+
+            localStorage.removeItem(
+                ACTIVE_JOB_KEY
+            );
+
+            if (!data.scan) {
+
+                throw new Error(
+                    "Scan completed but results were not found."
+                );
+            }
+
+            const scan =
+                data.scan;
+
+            renderResults({
+
+                success: true,
+
+                scan_id:
+                    scan.id,
+
+                target:
+                    scan.target,
+
+                mode:
+                    job.mode,
+
+                discovered_endpoints:
+                    scan.endpoints ||
+                    [],
+
+                findings:
+                    scan.findings ||
+                    [],
+
+                risk:
+                    data.risk ||
+                    {}
+
+            });
+
+            await loadHistoryStats();
+
+            showStatus(
+                `${getModeLabel(
+                    job.mode
+                )} scan completed.`
+            );
+
+            // -----------------------------------------------
+            // Final risk badge
+            // -----------------------------------------------
+
+            if (scanBadge) {
+
+                scanBadge.textContent =
+                    (
+                        data.risk?.risk_level ||
+                        "COMPLETED"
+                    ).toUpperCase();
+
+                scanBadge.className =
+                    "badge";
+
+                const level =
+                    String(
+                        data.risk?.risk_level ||
+                        ""
+                    ).toLowerCase();
+
+                if (
+                    level === "high"
+                ) {
+
+                    scanBadge.classList.add(
+                        "risk-high"
+                    );
+
+                } else if (
+                    level === "medium"
+                ) {
+
+                    scanBadge.classList.add(
+                        "risk-medium"
+                    );
+
+                } else if (
+                    level === "low"
+                ) {
+
+                    scanBadge.classList.add(
+                        "risk-low"
+                    );
+                }
+            }
+
+            return;
+        }
+
+        // ----------------------------------------------------
+        // Failed
+        // ----------------------------------------------------
+
+        if (
+            job.status ===
+            "failed"
+        ) {
+
+            localStorage.removeItem(
+                ACTIVE_JOB_KEY
+            );
+
+            throw new Error(
+                job.error ||
+                job.message ||
+                "Background scan failed."
+            );
+        }
+
+        // ----------------------------------------------------
+        // Continue polling
+        // ----------------------------------------------------
+
+        await new Promise(
+            resolve =>
+                setTimeout(
+                    resolve,
+                    1000
+                )
+        );
+    }
+}
+
+
+// =========================================================
+// RESUME ACTIVE JOB
+// =========================================================
+
+async function resumeActiveScan() {
+
+    const storedJobId =
+        localStorage.getItem(
+            ACTIVE_JOB_KEY
+        );
+
+    if (!storedJobId) {
+        return;
+    }
+
+    const jobId =
+        Number(
+            storedJobId
+        );
+
+    if (
+        !Number.isInteger(jobId) ||
+        jobId <= 0
+    ) {
+
+        localStorage.removeItem(
+            ACTIVE_JOB_KEY
+        );
+
+        return;
+    }
+
+    try {
+
+        setLoading(true);
+
+        showStatus(
+            "Reconnecting to background scan..."
+        );
+
+        await monitorScanJob(
+            jobId
+        );
+
+    } catch (error) {
+
+        console.error(
+            "Unable to resume scan:",
+            error
+        );
+
+        localStorage.removeItem(
+            ACTIVE_JOB_KEY
+        );
+
+        showStatus(
+            "Unable to resume the previous scan."
+        );
+
+    } finally {
+
+        setLoading(false);
+    }
+}
+
+
+// =========================================================
+// START SCAN
+// =========================================================
+
+async function startScan() {
+
+    if (!targetUrl) {
+        return;
+    }
+
+    const url =
+        targetUrl.value.trim();
+
+    // --------------------------------------------------------
+    // Validate URL
+    // --------------------------------------------------------
+
+    if (!url) {
+
+        alert(
+            "Enter a target URL."
+        );
+
+        return;
+    }
+
+    if (
+        !url.startsWith(
+            "http://"
+        )
+        &&
+        !url.startsWith(
+            "https://"
+        )
+    ) {
+
+        alert(
+            "URL must start with http:// or https://"
+        );
+
+        return;
+    }
+
+    // --------------------------------------------------------
+    // Loading
+    // --------------------------------------------------------
+
+    setLoading(true);
+
+    if (scanBadge) {
+
+        scanBadge.textContent =
+            "QUEUED";
+
+        scanBadge.className =
+            "badge";
+    }
+
+    if (results) {
+
+        results.innerHTML = `
+
+            <div class="empty-state">
+
+                <div class="empty-icon">
+                    ⏳
+                </div>
+
+                <h3>
+                    Creating Background Scan
+                </h3>
+
+                <p>
+                    Submitting the scan job...
+                </p>
+
+            </div>
+
+        `;
+    }
+
+    try {
+
+        showStatus(
+            "Creating background scan job..."
+        );
+
+        // ----------------------------------------------------
+        // Create job
+        // ----------------------------------------------------
+
+        const response =
+            await fetch(
+                "/api/scan",
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json"
+                    },
+
+                    body: JSON.stringify({
+
+                        url: url,
+
+                        mode:
+                            selectedScanMode
+
+                    })
+                }
+            );
+
+        let data;
+
+        try {
+
+            data =
+                await response.json();
+
+        } catch (error) {
+
+            throw new Error(
+                "Server returned an invalid response."
+            );
+        }
+
+        if (
+            !response.ok ||
+            !data.success
+        ) {
+
+            throw new Error(
+                data.error ||
+                "Unable to create scan job."
+            );
+        }
+
+        if (!data.job_id) {
+
+            throw new Error(
+                "Server did not return a scan job ID."
+            );
+        }
+
+        // ----------------------------------------------------
+        // Monitor job
+        // ----------------------------------------------------
+
+        showStatus(
+            "Background scan started."
+        );
+
+        await monitorScanJob(
+            data.job_id
+        );
+
+    } catch (error) {
+
+        console.error(
+            "WebGuard background scan error:",
+            error
+        );
+
+        localStorage.removeItem(
+            ACTIVE_JOB_KEY
+        );
+
+        if (scanBadge) {
+
+            scanBadge.textContent =
+                "FAILED";
+
+            scanBadge.className =
+                "badge risk-high";
+        }
 
         if (results) {
 
@@ -1004,20 +1524,17 @@ document.addEventListener("DOMContentLoaded", () => {
                 <div class="empty-state">
 
                     <div class="empty-icon">
-                        🧠
+                        ❌
                     </div>
 
                     <h3>
-                        ${escapeHTML(
-                            getModeLabel(
-                                selectedScanMode
-                            )
-                        )}
-                        Scan Running
+                        Scan Failed
                     </h3>
 
-                    <p id="progressText">
-                        Initializing scanner...
+                    <p>
+                        ${escapeHTML(
+                            error.message
+                        )}
                     </p>
 
                 </div>
@@ -1025,221 +1542,15 @@ document.addEventListener("DOMContentLoaded", () => {
             `;
         }
 
+        showStatus(
+            "Scan failed."
+        );
 
-        const progress =
-            document.getElementById(
-                "progressText"
-            );
+    } finally {
 
-
-        try {
-
-            // -------------------------------------------------
-            // Validation
-            // -------------------------------------------------
-
-            showStatus(
-                "Validating target..."
-            );
-
-
-            if (progress) {
-
-                progress.textContent =
-                    "✓ Target validated";
-            }
-
-
-            // -------------------------------------------------
-            // Crawling
-            // -------------------------------------------------
-
-            showStatus(
-                "Crawling endpoints..."
-            );
-
-
-            if (progress) {
-
-                progress.textContent =
-                    `✓ Crawling endpoints (max ${scanConfig.max_pages} pages)`;
-            }
-
-
-            // -------------------------------------------------
-            // Parameter discovery
-            // -------------------------------------------------
-
-            showStatus(
-                "Discovering parameters..."
-            );
-
-
-            if (progress) {
-
-                progress.textContent =
-                    "✓ Discovering parameters";
-            }
-
-
-            // -------------------------------------------------
-            // API REQUEST
-            // -------------------------------------------------
-
-            const response =
-                await fetch(
-                    "/api/scan",
-                    {
-                        method: "POST",
-
-                        headers: {
-                            "Content-Type":
-                                "application/json"
-                        },
-
-                        body: JSON.stringify({
-
-                            url: url,
-
-                            // Only the scan mode is
-                            // selected by the user.
-                            mode:
-                                selectedScanMode
-                        })
-                    }
-                );
-
-
-            // -------------------------------------------------
-            // Parse response
-            // -------------------------------------------------
-
-            let data;
-
-
-            try {
-
-                data =
-                    await response.json();
-
-            } catch (parseError) {
-
-                throw new Error(
-                    "Server returned an invalid response."
-                );
-            }
-
-
-            if (
-                !response.ok ||
-                !data.success
-            ) {
-
-                throw new Error(
-                    data.error ||
-                    "Scan failed."
-                );
-            }
-
-
-            // -------------------------------------------------
-            // Analysis
-            // -------------------------------------------------
-
-            showStatus(
-                "Analyzing findings..."
-            );
-
-
-            if (progress) {
-
-                progress.textContent =
-                    "✓ Scan completed — analyzing findings";
-            }
-
-
-            // -------------------------------------------------
-            // Render results
-            // -------------------------------------------------
-
-            renderResults(
-                data
-            );
-
-
-            // -------------------------------------------------
-            // History
-            // -------------------------------------------------
-
-            await loadHistoryStats();
-
-
-            // -------------------------------------------------
-            // Completed
-            // -------------------------------------------------
-
-            showStatus(
-                `${getModeLabel(
-                    selectedScanMode
-                )} scan completed.`
-            );
-
-
-        } catch (error) {
-
-            console.error(
-                "WebGuard scan error:",
-                error
-            );
-
-
-            if (scanBadge) {
-
-                scanBadge.textContent =
-                    "FAILED";
-
-
-                scanBadge.className =
-                    "badge risk-high";
-            }
-
-
-            if (results) {
-
-                results.innerHTML = `
-
-                    <div class="empty-state">
-
-                        <div class="empty-icon">
-                            ❌
-                        </div>
-
-                        <h3>
-                            Scan Failed
-                        </h3>
-
-                        <p>
-                            ${escapeHTML(
-                                error.message
-                            )}
-                        </p>
-
-                    </div>
-
-                `;
-            }
-
-
-            showStatus(
-                "Scan failed."
-            );
-
-
-        } finally {
-
-            setLoading(false);
-        }
+        setLoading(false);
     }
+}
 
 
     // =========================================================
@@ -1346,5 +1657,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
     loadHistoryStats();
+
+    resumeActiveScan();
+    
 
 });
