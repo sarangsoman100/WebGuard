@@ -187,6 +187,28 @@ def init_db():
         "TEXT"
     )
 
+    # ---------------------------------------------------------
+    # Background scan jobs table
+    # ---------------------------------------------------------
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS scan_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            target TEXT NOT NULL,
+            mode TEXT DEFAULT 'standard',
+            status TEXT DEFAULT 'queued',
+            progress INTEGER DEFAULT 0,
+            stage TEXT DEFAULT 'Queued',
+            message TEXT DEFAULT 'Scan queued.',
+            scan_id INTEGER,
+            error TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            FOREIGN KEY (scan_id) REFERENCES scans(id)
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -507,4 +529,116 @@ def get_scan(scan_id):
     result["findings"] = findings
 
     return result
+
+
+# =========================================================
+# Background Scan Jobs
+# =========================================================
+
+def create_scan_job(target, mode="standard"):
+    """Create a persistent background scan job and return its ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO scan_jobs (
+            target,
+            mode,
+            status,
+            progress,
+            stage,
+            message
+        )
+        VALUES (?, ?, 'queued', 0, 'Queued', 'Scan queued.')
+    """, (target, mode))
+
+    job_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return job_id
+
+
+def update_scan_job(
+    job_id,
+    status=None,
+    progress=None,
+    stage=None,
+    message=None,
+    scan_id=None,
+    error=None,
+    started=False,
+    completed=False,
+):
+    """Update one or more persistent fields for a background scan job."""
+    fields = []
+    values = []
+
+    if status is not None:
+        fields.append("status = ?")
+        values.append(status)
+
+    if progress is not None:
+        fields.append("progress = ?")
+        values.append(max(0, min(100, int(progress))))
+
+    if stage is not None:
+        fields.append("stage = ?")
+        values.append(stage)
+
+    if message is not None:
+        fields.append("message = ?")
+        values.append(message)
+
+    if scan_id is not None:
+        fields.append("scan_id = ?")
+        values.append(scan_id)
+
+    if error is not None:
+        fields.append("error = ?")
+        values.append(error)
+
+    if started:
+        fields.append("started_at = CURRENT_TIMESTAMP")
+
+    if completed:
+        fields.append("completed_at = CURRENT_TIMESTAMP")
+
+    if not fields:
+        return
+
+    values.append(job_id)
+
+    conn = get_connection()
+    conn.execute(
+        f"UPDATE scan_jobs SET {', '.join(fields)} WHERE id = ?",
+        values,
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_scan_job(job_id):
+    """Return a single background scan job."""
+    conn = get_connection()
+    row = conn.execute(
+        "SELECT * FROM scan_jobs WHERE id = ?",
+        (job_id,),
+    ).fetchone()
+    conn.close()
+
+    return dict(row) if row else None
+
+
+def get_active_scan_jobs():
+    """Return queued/running jobs for dashboard recovery."""
+    conn = get_connection()
+    rows = conn.execute("""
+        SELECT *
+        FROM scan_jobs
+        WHERE status IN ('queued', 'running')
+        ORDER BY id DESC
+    """).fetchall()
+    conn.close()
+
+    return [dict(row) for row in rows]
 
